@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>탱크 3D 샘플링 시뮬레이터</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #111827; color: #f3f4f6; font-family: 'Pretendard', sans-serif; }
+        #canvas-container { width: 100%; height: 100%; }
+        /* 스크롤바 커스텀 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        input[type=range] { accent-color: #3b82f6; }
+    </style>
+    <!-- Three.js Import Map -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body class="flex h-screen w-screen">
+
+    <!-- 좌측 컨트롤 패널 -->
+    <div class="w-96 bg-gray-900 border-r border-gray-700 p-6 flex flex-col gap-6 overflow-y-auto shadow-xl z-10">
+        <div>
+            <h1 class="text-2xl font-bold text-white flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                </svg>
+                원유 샘플링 최적화
+            </h1>
+            <p class="text-sm text-gray-400 mt-2">로봇 암(Robot Arm) 기반 3D 공간 샘플링 포인트 생성기. 하단부 붉은색은 철(Fe) 농축 슬러지를 의미합니다.</p>
+        </div>
+
+        <!-- 파라미터 설정 -->
+        <div class="space-y-4">
+            <h2 class="text-lg font-semibold text-gray-200 border-b border-gray-700 pb-2">기하학적 제원 (Geometry)</h2>
+            
+            <div>
+                <label class="flex justify-between text-sm text-gray-300 mb-1">
+                    <span>탱크 반경 (Radius)</span>
+                    <span id="val-radius" class="text-blue-400 font-mono">10 m</span>
+                </label>
+                <input type="range" id="param-radius" min="2" max="20" step="0.5" value="10" class="w-full">
+            </div>
+
+            <div>
+                <label class="flex justify-between text-sm text-gray-300 mb-1">
+                    <span>원기둥 높이 (Cylinder Height)</span>
+                    <span id="val-hcyl" class="text-blue-400 font-mono">15 m</span>
+                </label>
+                <input type="range" id="param-hcyl" min="0" max="30" step="1" value="15" class="w-full">
+            </div>
+
+            <div>
+                <label class="flex justify-between text-sm text-gray-300 mb-1">
+                    <span>원뿔 하단 높이 (Cone Height)</span>
+                    <span id="val-hcone" class="text-orange-400 font-mono">3 m</span>
+                </label>
+                <input type="range" id="param-hcone" min="0" max="10" step="0.5" value="3" class="w-full">
+            </div>
+        </div>
+
+        <!-- 샘플링 설정 -->
+        <div class="space-y-4 mt-2">
+            <h2 class="text-lg font-semibold text-gray-200 border-b border-gray-700 pb-2">샘플링 전략 (Methodology)</h2>
+            
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">샘플링 기법</label>
+                <select id="param-method" class="w-full bg-gray-800 border border-gray-600 text-white text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block p-2.5">
+                    <option value="random">무작위 추출 (Monte Carlo)</option>
+                    <option value="grid">그리드 샘플링 (Grid / Uniform)</option>
+                    <option value="lhs" selected>라틴 하이퍼큐브 (LHS)</option>
+                    <option value="sobol">준난수/저원차 수열 (Sobol/Halton)</option>
+                </select>
+                <p id="method-desc" class="text-xs text-gray-400 mt-2 h-12">각 차원 공간을 균등하게 분할하여 샘플이 한 곳에 뭉치지 않도록 보장하는 효율적인 기법입니다.</p>
+            </div>
+
+            <div>
+                <label class="flex justify-between text-sm text-gray-300 mb-1">
+                    <span>샘플 갯수 (N)</span>
+                    <span id="val-samples" class="text-green-400 font-mono">500</span>
+                </label>
+                <input type="range" id="param-samples" min="10" max="5000" step="10" value="500" class="w-full">
+            </div>
+        </div>
+
+        <button id="btn-generate" class="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded transition duration-200 flex justify-center items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+            </svg>
+            샘플 재배치
+        </button>
+
+        <!-- 통계 정보 -->
+        <div class="mt-auto bg-gray-800 p-4 rounded-lg border border-gray-700">
+            <h3 class="text-sm font-semibold text-gray-300 mb-2">체적 및 분포 분석</h3>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="text-gray-400">총 체적:</div>
+                <div id="stat-vol" class="text-right text-white font-mono">0 m³</div>
+                <div class="text-gray-400">원뿔 체적 비율:</div>
+                <div id="stat-ratio" class="text-right text-orange-400 font-mono">0 %</div>
+                <div class="text-gray-400 pt-2 border-t border-gray-700">원기둥 구역 샘플:</div>
+                <div id="stat-cyl-samples" class="text-right text-blue-300 font-mono pt-2 border-t border-gray-700">0 개</div>
+                <div class="text-gray-400">원뿔 구역 샘플:</div>
+                <div id="stat-cone-samples" class="text-right text-orange-300 font-mono">0 개</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 우측 3D 캔버스 -->
+    <div class="flex-1 relative bg-gray-900" id="canvas-container">
+        <!-- 오버레이 UI -->
+        <div class="absolute top-4 right-4 bg-black bg-opacity-50 text-white p-3 rounded text-xs pointer-events-none border border-gray-700">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="w-3 h-3 rounded-full bg-blue-400 block"></span> 상부 원유 (정상 구역)
+            </div>
+            <div class="flex items-center gap-2 mb-1">
+                <span class="w-3 h-3 rounded-full bg-yellow-400 block"></span> 원뿔 경계면 (침전 시작)
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-red-500 block"></span> 고농도 철(Fe) 슬러지 구역
+            </div>
+        </div>
+        <div class="absolute bottom-4 right-4 text-gray-500 text-xs pointer-events-none">
+            마우스 좌클릭: 회전 | 우클릭: 이동 | 휠: 확대/축소
+        </div>
+    </div>
+
+    <!-- 3D 렌더링 및 로직 스크립트 -->
+    <script type="module">
+        // Import Map을 통한 모듈 참조
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- 전역 변수 ---
+        let scene, camera, renderer, controls;
+        let tankGroup, pointsMesh;
+
+        // UI 엘리먼트
+        const inputs = {
+            r: document.getElementById('param-radius'),
+            hcyl: document.getElementById('param-hcyl'),
+            hcone: document.getElementById('param-hcone'),
+            method: document.getElementById('param-method'),
+            n: document.getElementById('param-samples'),
+            btn: document.getElementById('btn-generate')
+        };
+        const displays = {
+            r: document.getElementById('val-radius'),
+            hcyl: document.getElementById('val-hcyl'),
+            hcone: document.getElementById('val-hcone'),
+            n: document.getElementById('val-samples'),
+            desc: document.getElementById('method-desc'),
+            vol: document.getElementById('stat-vol'),
+            ratio: document.getElementById('stat-ratio'),
+            cylSamples: document.getElementById('stat-cyl-samples'),
+            coneSamples: document.getElementById('stat-cone-samples')
+        };
+
+        const descriptions = {
+            random: "기본적인 몬테카를로 방식. 빈 공간이 생기거나 한 곳에 군집하는 클러스터링 현상이 발생할 수 있습니다.",
+            grid: "일정한 간격으로 격자를 형성합니다. 체적에 비례하지 않아 원뿔 하단부의 정밀 분석에는 다소 불리합니다.",
+            lhs: "각 차원(반경, 각도, 높이) 공간을 균등 분할하여 층화(Stratified) 샘플링을 수행. 국부적인 편향을 방지합니다.",
+            sobol: "수학적인 저원차(Low-Discrepancy) 수열(Halton 알고리즘 기반)을 사용하여 공간을 가장 균일하게 채웁니다."
+        };
+
+        // --- 초기화 ---
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111827); // Tailwind gray-900
+            
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(40, 30, 40);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(0, 10, 0);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(50, 50, 50);
+            scene.add(dirLight);
+
+            // Grid & Axes
+            const gridHelper = new THREE.GridHelper(60, 60, 0x4b5563, 0x1f2937);
+            gridHelper.position.y = 0; // 원뿔 꼭짓점 기준
+            scene.add(gridHelper);
+
+            // 이벤트 리스너 등록
+            window.addEventListener('resize', onWindowResize);
+            inputs.r.addEventListener('input', updateUI);
+            inputs.hcyl.addEventListener('input', updateUI);
+            inputs.hcone.addEventListener('input', updateUI);
+            inputs.n.addEventListener('input', updateUI);
+            inputs.method.addEventListener('change', () => {
+                displays.desc.innerText = descriptions[inputs.method.value];
+                generateVisualization();
+            });
+            inputs.btn.addEventListener('click', generateVisualization);
+
+            // 초기 렌더링
+            updateUI();
+            generateVisualization();
+            animate();
+        }
+
+        // --- UI 업데이트 ---
+        function updateUI() {
+            displays.r.innerText = `${parseFloat(inputs.r.value).toFixed(1)} m`;
+            displays.hcyl.innerText = `${parseFloat(inputs.hcyl.value).toFixed(1)} m`;
+            displays.hcone.innerText = `${parseFloat(inputs.hcone.value).toFixed(1)} m`;
+            displays.n.innerText = inputs.n.value;
+        }
+
+        // --- 수학 & 통계 유틸리티 ---
+
+        // Halton Sequence (저원차 수열 발생기)
+        function halton(index, base) {
+            let result = 0;
+            let f = 1 / base;
+            let i = index;
+            while (i > 0) {
+                result = result + f * (i % base);
+                i = Math.floor(i / base);
+                f = f / base;
+            }
+            return result;
+        }
+
+        // 라틴 하이퍼큐브 (LHS) 1차원 배열 생성
+        function generateLHS1D(n) {
+            const arr = Array.from({length: n}, (_, i) => i);
+            // Fisher-Yates shuffle
+            for (let i = n - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr.map(val => (val + Math.random()) / n);
+        }
+
+        // 원통+원뿔 체적 내에서 균일한 분포를 가지도록 매핑
+        // u_r, u_theta, u_z 는 0~1 사이의 균일 분포 난수
+        function mapToTankVolume(ur, utheta, uz, R, Hcyl, Hcone) {
+            const Vcone = (1/3) * Math.PI * R * R * Hcone;
+            const Vcyl = Math.PI * R * R * Hcyl;
+            const Vtotal = Vcone + Vcyl;
+
+            // 누적 부피를 기준으로 높이(z) 결정
+            const targetV = uz * Vtotal;
+            let y, r_max;
+
+            if (targetV <= Vcone) {
+                // 원뿔 구역 (y: 0 ~ Hcone)
+                if (Hcone === 0) {
+                    y = 0;
+                    r_max = R;
+                } else {
+                    // V(y) = 1/3 * pi * r(y)^2 * y = 1/3 * pi * (R*y/Hcone)^2 * y
+                    // y = (targetV * 3 * Hcone^2 / (pi * R^2))^(1/3)
+                    y = Math.pow(targetV * 3 * Hcone * Hcone / (Math.PI * R * R), 1/3);
+                    r_max = R * (y / Hcone); // 해당 높이에서의 최대 반경
+                }
+            } else {
+                // 원기둥 구역 (y: Hcone ~ Hcone + Hcyl)
+                const remainingV = targetV - Vcone;
+                y = Hcone + (remainingV / (Math.PI * R * R));
+                r_max = R;
+            }
+
+            // 반경 방향 맵핑 (면적에 비례하도록 sqrt 적용)
+            const r = r_max * Math.sqrt(ur);
+            // 각도 방향 맵핑
+            const theta = utheta * 2 * Math.PI;
+
+            return {
+                x: r * Math.cos(theta),
+                y: y,
+                z: r * Math.sin(theta),
+                isCone: y <= Hcone
+            };
+        }
+
+        // --- 메인 생성 로직 ---
+        function generateVisualization() {
+            const R = parseFloat(inputs.r.value);
+            const Hcyl = parseFloat(inputs.hcyl.value);
+            const Hcone = parseFloat(inputs.hcone.value);
+            const N = parseInt(inputs.n.value);
+            const method = inputs.method.value;
+
+            // 1. 탱크 모델링 (Glass effect)
+            if (tankGroup) scene.remove(tankGroup);
+            tankGroup = new THREE.Group();
+
+            const glassMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0xffffff,
+                metalness: 0.1,
+                roughness: 0.1,
+                transmission: 0.9, // 유리처럼 투명하게
+                transparent: true,
+                opacity: 0.2,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+
+            const wireMaterial = new THREE.LineBasicMaterial({ color: 0x4b5563, transparent: true, opacity: 0.5 });
+
+            // 원뿔 파트
+            if (Hcone > 0) {
+                // Three.js의 CylinderGeometry(radiusTop, radiusBottom, height) 이용
+                const coneGeo = new THREE.CylinderGeometry(R, 0.01, Hcone, 32, 1, true);
+                coneGeo.translate(0, Hcone/2, 0); // 밑면 뾰족한 곳을 y=0으로 맞춤
+                const coneMesh = new THREE.Mesh(coneGeo, glassMaterial);
+                
+                const edges = new THREE.EdgesGeometry(coneGeo);
+                const line = new THREE.LineSegments(edges, wireMaterial);
+                
+                tankGroup.add(coneMesh);
+                tankGroup.add(line);
+            }
+
+            // 원기둥 파트
+            if (Hcyl > 0) {
+                const cylGeo = new THREE.CylinderGeometry(R, R, Hcyl, 32, 1, true);
+                cylGeo.translate(0, Hcone + Hcyl/2, 0); // 원뿔 위에 얹음
+                const cylMesh = new THREE.Mesh(cylGeo, glassMaterial);
+                
+                const edges = new THREE.EdgesGeometry(cylGeo);
+                const line = new THREE.LineSegments(edges, wireMaterial);
+
+                // 천장
+                const topGeo = new THREE.CircleGeometry(R, 32);
+                topGeo.rotateX(-Math.PI / 2);
+                topGeo.translate(0, Hcone + Hcyl, 0);
+                const topMesh = new THREE.Mesh(topGeo, glassMaterial);
+
+                tankGroup.add(cylMesh);
+                tankGroup.add(topMesh);
+                tankGroup.add(line);
+            }
+            scene.add(tankGroup);
+
+            // 2. 샘플링 포인트 생성
+            if (pointsMesh) scene.remove(pointsMesh);
+
+            const positions = new Float32Array(N * 3);
+            const colors = new Float32Array(N * 3);
+            const colorObj = new THREE.Color();
+
+            let coneCount = 0;
+            let cylCount = 0;
+
+            let u_r, u_theta, u_z;
+            let lhs_r, lhs_theta, lhs_z;
+
+            if (method === 'lhs') {
+                lhs_r = generateLHS1D(N);
+                lhs_theta = generateLHS1D(N);
+                lhs_z = generateLHS1D(N);
+            }
+
+            // Grid 변수
+            let gridIdx = 0;
+            let gridSize = Math.ceil(Math.pow(N, 1/3));
+
+            for (let i = 0; i < N; i++) {
+                if (method === 'random') {
+                    u_r = Math.random();
+                    u_theta = Math.random();
+                    u_z = Math.random();
+                } else if (method === 'lhs') {
+                    u_r = lhs_r[i];
+                    u_theta = lhs_theta[i];
+                    u_z = lhs_z[i];
+                } else if (method === 'sobol') {
+                    // Halton bases: 2, 3, 5 (서로소)
+                    u_r = halton(i + 1, 2);
+                    u_theta = halton(i + 1, 3);
+                    u_z = halton(i + 1, 5);
+                } else if (method === 'grid') {
+                    // 그리드의 경우 0~1 공간을 균일 분할
+                    let gx = i % gridSize;
+                    let gy = Math.floor(i / gridSize) % gridSize;
+                    let gz = Math.floor(i / (gridSize * gridSize));
+                    u_r = (gx + 0.5) / gridSize;
+                    u_theta = (gy + 0.5) / gridSize;
+                    u_z = (gz + 0.5) / gridSize;
+                    // N개를 초과하는 경우 무시 (근사)
+                    if (u_z > 1.0) { u_r = Math.random(); u_theta = Math.random(); u_z = Math.random(); } 
+                }
+
+                const pt = mapToTankVolume(u_r, u_theta, u_z, R, Hcyl, Hcone);
+
+                positions[i * 3] = pt.x;
+                positions[i * 3 + 1] = pt.y;
+                positions[i * 3 + 2] = pt.z;
+
+                // 철(Fe) 농도에 따른 색상 시뮬레이션
+                // 원뿔 하단부일수록 붉은색(슬러지), 위로 갈수록 파란색(순수 오일)
+                if (pt.isCone) {
+                    coneCount++;
+                    // 원뿔 내에서 바닥에 가까울수록 진한 빨강
+                    const ratio = pt.y / (Hcone || 1); 
+                    // 0(바닥) -> 1(원뿔 상단)
+                    // 바닥: Red(1,0,0), 상단: Yellow(1,1,0)
+                    colorObj.setRGB(1, ratio, 0); 
+                } else {
+                    cylCount++;
+                    // 원기둥 내에서는 고르게 분포 (푸른빛)
+                    colorObj.setRGB(0.2, 0.6, 1.0);
+                }
+
+                colors[i * 3] = colorObj.r;
+                colors[i * 3 + 1] = colorObj.g;
+                colors[i * 3 + 2] = colorObj.b;
+            }
+
+            // 포인트 렌더링을 위한 기하학 구조체
+            const geom = new THREE.BufferGeometry();
+            geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            // 동그란 파티클 형태를 위한 머티리얼
+            const dotMaterial = new THREE.PointsMaterial({
+                size: R * 0.1, // 탱크 크기에 비례하여 점 크기 조절
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.9,
+                sizeAttenuation: true
+            });
+
+            pointsMesh = new THREE.Points(geom, dotMaterial);
+            scene.add(pointsMesh);
+
+            // 카메라 타겟 업데이트
+            controls.target.set(0, (Hcone + Hcyl) / 2, 0);
+            camera.position.set(R * 3, (Hcone + Hcyl) * 1.2, R * 3);
+
+            // 통계 정보 업데이트
+            const Vcone = (1/3) * Math.PI * R * R * Hcone;
+            const Vcyl = Math.PI * R * R * Hcyl;
+            const Vtotal = Vcone + Vcyl;
+            const coneRatio = Vtotal > 0 ? (Vcone / Vtotal) * 100 : 0;
+
+            displays.vol.innerText = `${Vtotal.toFixed(1)} m³`;
+            displays.ratio.innerText = `${coneRatio.toFixed(1)} %`;
+            displays.cylSamples.innerText = `${cylCount} 개 (${((cylCount/N)*100).toFixed(1)}%)`;
+            displays.coneSamples.innerText = `${coneCount} 개 (${((coneCount/N)*100).toFixed(1)}%)`;
+        }
+
+        // --- 창 크기 변경 대응 ---
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        // --- 애니메이션 루프 ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // 실행
+        init();
+
+    </script>
+</body>
+</html>
