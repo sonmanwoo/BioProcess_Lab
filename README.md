@@ -10,5 +10,5 @@ https://sonmanwoo.github.io/BioProcess_Lab/blending_calculator.html
 2.관능 평가를 위한 앱 입니다. (컨셉 제안용)<br />
 https://sonmanwoo.github.io/BioProcess_Lab/OderQA.html
 
-3. 원유 탱크 내 조성 분포 계산 앱 (컨셉 제안용)
-https://sonmanwoo.github.io/BioProcess_Lab/Oil Tank Sampling.html
+3. 원유 탱크 내 조성 분포 계산 앱 (컨셉 제안용)<br />
+https://sonmanwoo.github.io/BioProcess_Lab/Oil_Tank_Sampling.html
