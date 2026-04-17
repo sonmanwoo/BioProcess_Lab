@@ -3,154 +3,468 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2,3-BDO 블렌딩 비율 계산기</title>
+    <title>탱크 3D 샘플링 & 분석 시스템</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
+        body { margin: 0; overflow: hidden; background-color: #111827; color: #f3f4f6; font-family: 'Pretendard', sans-serif; }
+        #canvas-container { width: 100%; height: 100%; cursor: crosshair; }
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: bold; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
+        input[type=range] { accent-color: #3b82f6; }
+        .glass-panel { background: rgba(17, 24, 39, 0.9); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.15); }
+        
+        /* 컬러바 스타일 */
+        .color-bar {
+            height: 12px;
+            width: 100%;
+            background: linear-gradient(to right, #00ffff, #00ff00, #ffff00, #ff0000);
+            border-radius: 6px;
         }
-        input:read-only {
-            background-color: #e5e7eb;
-            cursor: not-allowed;
+
+        /* 클릭 팝업 */
+        #click-popup {
+            display: none;
+            position: absolute;
+            z-index: 100;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            min-width: 200px;
         }
     </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl p-8 w-full max-w-2xl">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">2,3-BDO 블렌딩 비율 계산기</h1>
-        <p class="text-center text-gray-600 mb-8">
-            4개의 값을 입력하면, 남은 1개의 입력창이 자동으로 계산되어 채워지고 입력이 잠깁니다.
-        </p>
-        <div class="space-y-6">
-            <!-- Input Card for Feed A -->
-            <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-200">
-                <h2 class="text-xl font-semibold text-indigo-800 mb-4">Feed A 정보</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="mesoA" class="block text-sm font-medium text-gray-700">meso 비율 (%)</label>
-                        <input type="number" id="mesoA" oninput="calculate()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2" placeholder="예: 80">
-                    </div>
-                    <div>
-                        <label for="massA" class="block text-sm font-medium text-gray-700">질량 (g)</label>
-                        <input type="number" id="massA" oninput="calculate()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2" placeholder="예: 100">
-                    </div>
-                </div>
-            </div>
+<body class="flex h-screen w-screen overflow-hidden">
 
-            <!-- Input Card for Feed B -->
-            <div class="bg-pink-50 p-6 rounded-xl border border-pink-200">
-                <h2 class="text-xl font-semibold text-pink-800 mb-4">Feed B 정보</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="mesoB" class="block text-sm font-medium text-gray-700">meso 비율 (%)</label>
-                        <input type="number" id="mesoB" oninput="calculate()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-2" placeholder="예: 20">
-                    </div>
-                    <div>
-                        <label for="massB" class="block text-sm font-medium text-gray-700">질량 (g)</label>
-                        <input type="number" id="massB" oninput="calculate()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 p-2" placeholder="예: 200">
-                    </div>
-                </div>
-            </div>
+    <!-- 좌측 컨트롤 패널 -->
+    <div class="w-[400px] bg-gray-900 border-r border-gray-700 flex flex-col shadow-xl z-20">
+        <div class="flex border-b border-gray-700">
+            <button id="tab-design-btn" class="flex-1 py-4 text-sm tab-active transition hover:bg-gray-800">Stage 1: 설계</button>
+            <button id="tab-analysis-btn" class="flex-1 py-4 text-sm text-gray-400 hover:text-white transition hover:bg-gray-800">Stage 2: 분석 & 추정</button>
+        </div>
 
-            <!-- Input Card for Product -->
-            <div class="bg-teal-50 p-6 rounded-xl border border-teal-200">
-                <h2 class="text-xl font-semibold text-teal-800 mb-4">Product 정보</h2>
+        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+            <!-- STAGE 1: 설계 섹션 -->
+            <div id="section-design" class="space-y-6">
                 <div>
-                    <label for="mesoProduct" class="block text-sm font-medium text-gray-700">meso 목표 비율 (%)</label>
-                    <input type="number" id="mesoProduct" oninput="calculate()" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 p-2" placeholder="예: 50">
+                    <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                        </svg>
+                        탱크 제원 설정
+                    </h1>
+                </div>
+
+                <div class="space-y-4 bg-gray-800/50 p-4 rounded-lg border border-gray-700">
+                    <div>
+                        <label class="flex justify-between text-xs text-gray-400 mb-1">반경 (Radius) <span id="val-radius" class="text-blue-400 font-mono">10.0 m</span></label>
+                        <input type="range" id="param-radius" min="2" max="20" step="0.5" value="10" class="w-full">
+                    </div>
+                    <div>
+                        <label class="flex justify-between text-xs text-gray-400 mb-1">원기둥 높이 (H-Cyl) <span id="val-hcyl" class="text-blue-400 font-mono">15.0 m</span></label>
+                        <input type="range" id="param-hcyl" min="0" max="30" step="1" value="15" class="w-full">
+                    </div>
+                    <div>
+                        <label class="flex justify-between text-xs text-gray-400 mb-1">원뿔 높이 (H-Cone) <span id="val-hcone" class="text-orange-400 font-mono">3.0 m</span></label>
+                        <input type="range" id="param-hcone" min="0" max="10" step="0.5" value="3" class="w-full">
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <h2 class="text-sm font-semibold text-gray-300">샘플링 전략</h2>
+                    <select id="param-method" class="w-full bg-gray-800 border border-gray-600 text-white text-sm rounded-md p-2.5 outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="random">무작위 추출 (Monte Carlo)</option>
+                        <option value="grid">그리드 샘플링 (Grid)</option>
+                        <option value="lhs" selected>라틴 하이퍼큐브 (LHS)</option>
+                        <option value="sobol">준난수 수열 (Sobol)</option>
+                    </select>
+                    <div>
+                        <label class="flex justify-between text-xs text-gray-400 mb-1">샘플 수 (N) <span id="val-samples" class="text-green-400 font-mono">50</span></label>
+                        <input type="range" id="param-samples" min="10" max="500" step="10" value="50" class="w-full">
+                    </div>
+                    <button id="btn-generate" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded transition shadow-lg shadow-blue-900/20">샘플링 포인트 생성</button>
                 </div>
             </div>
 
-            <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 mt-8">
-                <button onclick="resetInputs()" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-full transition duration-300 ease-in-out transform hover:scale-105">
-                    초기화
-                </button>
+            <!-- STAGE 2: 분석 섹션 -->
+            <div id="section-analysis" class="hidden space-y-6">
+                <div>
+                    <h2 class="text-xl font-bold text-white">데이터 분석 및 추정</h2>
+                    <p class="text-xs text-gray-400 mt-1">지도를 클릭하거나 아래 리스트에 분석값을 입력하세요.</p>
+                </div>
+
+                <!-- 분석 데이터 리스트 -->
+                <div class="space-y-2 max-h-[300px] overflow-y-auto pr-2 border-b border-gray-700 pb-4" id="sample-data-list">
+                    <!-- 샘플 항목들이 여기에 동적으로 생성됨 -->
+                </div>
+
+                <div class="bg-gray-800/80 border border-gray-700 p-4 rounded-lg space-y-4">
+                    <div class="space-y-2">
+                        <h3 class="text-xs font-bold text-gray-400 flex justify-between uppercase">
+                            Concentration Scale (0% ~ 100%)
+                        </h3>
+                        <div class="color-bar"></div>
+                        <div class="flex justify-between text-[10px] font-mono text-gray-500">
+                            <span>0% (Low)</span>
+                            <span>25%</span>
+                            <span>50%</span>
+                            <span>75%</span>
+                            <span>100% (High)</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-blue-900/20 border border-blue-800/40 p-3 rounded space-y-2">
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <span class="text-gray-400">실측 완료:</span>
+                            <span id="stat-input-count" class="text-right text-white font-mono">0 / 50</span>
+                            <span class="text-gray-400">평균 조성:</span>
+                            <span id="stat-avg-comp" class="text-right text-yellow-400 font-bold">-%</span>
+                        </div>
+                    </div>
+                    
+                    <button id="btn-interpolate" class="w-full bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-3 rounded transition shadow-lg shadow-green-900/20">
+                        전체 분포 추정 (IDW)
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // 입력 필드를 초기화하고 입력 가능 상태로 되돌리는 함수
-        function resetInputs() {
-            const inputs = document.querySelectorAll('input[type="number"]');
-            inputs.forEach(input => {
-                input.value = '';
-                input.readOnly = false;
-                // Placeholder를 초기 상태로 되돌립니다.
-                if (input.id === 'mesoA') input.placeholder = '예: 80';
-                if (input.id === 'massA') input.placeholder = '예: 100';
-                if (input.id === 'mesoB') input.placeholder = '예: 20';
-                if (input.id === 'massB') input.placeholder = '예: 200';
-                if (input.id === 'mesoProduct') input.placeholder = '예: 50';
+    <!-- 우측 3D 캔버스 -->
+    <div class="flex-1 relative" id="canvas-container">
+        <!-- 모드 뱃지 -->
+        <div class="absolute top-4 left-4 pointer-events-none">
+            <div id="mode-badge" class="px-3 py-1 rounded-full bg-blue-500/20 border border-blue-500 text-blue-400 text-xs font-bold inline-block">
+                DESIGN MODE
+            </div>
+            <div id="click-hint" class="hidden ml-2 px-3 py-1 rounded-full bg-gray-800/80 border border-gray-600 text-gray-300 text-[10px] animate-pulse">
+                Click a point to input data
+            </div>
+        </div>
+
+        <!-- 클릭 팝업 (데이터 입력기) -->
+        <div id="click-popup" class="glass-panel text-white">
+            <div class="text-[10px] text-blue-400 mb-1 font-bold uppercase tracking-wider">Point Data Entry</div>
+            <div id="popup-point-info" class="text-xs text-gray-300 mb-3">Point #1 (Y: 10.0m)</div>
+            <div class="flex flex-col gap-2">
+                <div class="flex gap-2">
+                    <input type="number" id="popup-input" class="flex-1 bg-gray-950 border border-gray-600 rounded p-2 text-xs outline-none focus:border-blue-500 text-white" placeholder="0 ~ 100" min="0" max="100">
+                    <button id="popup-save" class="bg-blue-600 px-3 rounded text-xs font-bold hover:bg-blue-500 transition">Save</button>
+                </div>
+                <div class="text-[9px] text-gray-500 text-center italic mt-1">Press Enter to save fast</div>
+            </div>
+            <button id="popup-close" class="absolute top-2 right-2 text-gray-500 hover:text-white transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+            </button>
+        </div>
+        
+        <div class="absolute bottom-4 right-4 text-gray-500 text-[10px] pointer-events-none bg-gray-900/50 px-2 py-1 rounded border border-gray-800">
+            L-Click: Rotate / Select | R-Click: Pan | Scroll: Zoom
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- State ---
+        let state = {
+            r: 10,
+            hcyl: 15,
+            hcone: 3,
+            n: 50,
+            method: 'lhs',
+            samples: [], // {x, y, z, value: null, isCone: bool}
+            mode: 'design',
+            selectedIndex: -1
+        };
+
+        // --- Three.js ---
+        let scene, camera, renderer, controls, raycaster, mouse;
+        let tankGroup, pointsMesh;
+
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f172a);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(35, 25, 35);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            const ambient = new THREE.AmbientLight(0xffffff, 0.9);
+            scene.add(ambient);
+
+            const grid = new THREE.GridHelper(50, 50, 0x1e293b, 0x1e293b);
+            scene.add(grid);
+
+            raycaster = new THREE.Raycaster();
+            raycaster.params.Points.threshold = 0.5; // 클릭 감도
+            mouse = new THREE.Vector2();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = container.clientWidth / container.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(container.clientWidth, container.clientHeight);
             });
+
+            // 컨테이너 클릭 이벤트
+            container.addEventListener('mousedown', onContainerClick);
+
+            // 팝업 내부 클릭 시 이벤트 버블링 차단 (팝업이 닫히지 않도록 수정)
+            const popup = document.getElementById('click-popup');
+            popup.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+            });
+
+            animate();
         }
 
-        // 계산을 수행하는 메인 함수
-        function calculate() {
-            // 이전에 계산된 결과가 있으면 초기화
-            const inputs = document.querySelectorAll('input[type="number"]');
-            inputs.forEach(input => {
-                if (input.readOnly) {
-                    input.value = '';
-                    input.readOnly = false;
+        function onContainerClick(event) {
+            if (state.mode !== 'analysis') return;
+
+            const container = document.getElementById('canvas-container');
+            const rect = container.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / container.clientWidth) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / container.clientHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(pointsMesh);
+
+            if (intersects.length > 0) {
+                const index = intersects[0].index;
+                showInputPopup(index, event.clientX, event.clientY);
+            } else {
+                hidePopup();
+            }
+        }
+
+        function showInputPopup(index, x, y) {
+            state.selectedIndex = index;
+            const s = state.samples[index];
+            const popup = document.getElementById('click-popup');
+            const info = document.getElementById('popup-point-info');
+            const input = document.getElementById('popup-input');
+
+            info.innerText = `Point #${index + 1} (H: ${s.y.toFixed(1)}m)`;
+            input.value = s.value !== null ? s.value : '';
+            
+            popup.style.display = 'block';
+            
+            // 화면 경계 밖으로 나가지 않게 위치 조정
+            const popupWidth = 220;
+            const popupHeight = 140;
+            let left = x + 10;
+            let top = y + 10;
+            
+            if (left + popupWidth > window.innerWidth) left = x - popupWidth - 10;
+            if (top + popupHeight > window.innerHeight) top = y - popupHeight - 10;
+
+            popup.style.left = `${left}px`;
+            popup.style.top = `${top}px`;
+            
+            // 입력창에 바로 포커스
+            setTimeout(() => input.focus(), 10);
+        }
+
+        function hidePopup() {
+            document.getElementById('click-popup').style.display = 'none';
+            state.selectedIndex = -1;
+        }
+
+        function savePopupData() {
+            const val = parseFloat(document.getElementById('popup-input').value);
+            if (state.selectedIndex !== -1) {
+                state.samples[state.selectedIndex].value = isNaN(val) ? null : val;
+                renderPoints(false);
+                updateSampleListUI();
+                hidePopup();
+            }
+        }
+
+        document.getElementById('popup-save').addEventListener('click', savePopupData);
+        document.getElementById('popup-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') savePopupData();
+        });
+
+        document.getElementById('popup-close').addEventListener('click', hidePopup);
+
+        // --- Logic ---
+        function generateSamples() {
+            const { r, hcyl, hcone, n, method } = state;
+            const newSamples = [];
+            const vCone = (Math.PI * r * r * hcone) / 3;
+            const vCyl = Math.PI * r * r * hcyl;
+            const vTotal = vCone + vCyl;
+
+            for(let i=0; i<n; i++) {
+                let uz = (method === 'lhs' || method === 'sobol') ? (i + 0.5)/n : Math.random();
+                let ur = Math.random();
+                let ut = Math.random();
+
+                const targetV = uz * vTotal;
+                let y, rMax;
+                if(targetV <= vCone) {
+                    y = Math.pow(targetV * 3 * hcone * hcone / (Math.PI * r * r), 1/3);
+                    rMax = r * (y / Math.max(hcone, 0.001));
+                } else {
+                    y = hcone + (targetV - vCone) / (Math.PI * r * r);
+                    rMax = r;
+                }
+                const rad = rMax * Math.sqrt(ur);
+                const theta = ut * Math.PI * 2;
+                
+                newSamples.push({ x: rad * Math.cos(theta), y: y, z: rad * Math.sin(theta), value: null, isCone: y <= hcone });
+            }
+            state.samples = newSamples;
+            renderTank();
+            renderPoints(false);
+            updateSampleListUI();
+        }
+
+        function renderTank() {
+            if(tankGroup) scene.remove(tankGroup);
+            tankGroup = new THREE.Group();
+            const mat = new THREE.MeshPhysicalMaterial({ color: 0x64748b, transparent: true, opacity: 0.15, transmission: 0.7, depthWrite: false });
+            
+            if(state.hcone > 0) {
+                const geo = new THREE.CylinderGeometry(state.r, 0, state.hcone, 32);
+                geo.translate(0, state.hcone/2, 0);
+                tankGroup.add(new THREE.Mesh(geo, mat));
+            }
+            if(state.hcyl > 0) {
+                const geo = new THREE.CylinderGeometry(state.r, state.r, state.hcyl, 32);
+                geo.translate(0, state.hcone + state.hcyl/2, 0);
+                tankGroup.add(new THREE.Mesh(geo, mat));
+            }
+            scene.add(tankGroup);
+            controls.target.set(0, (state.hcone + state.hcyl)/2, 0);
+        }
+
+        function renderPoints(isHeatmap = false) {
+            if(pointsMesh) scene.remove(pointsMesh);
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(state.samples.length * 3);
+            const cols = new Float32Array(state.samples.length * 3);
+            const color = new THREE.Color();
+
+            state.samples.forEach((s, i) => {
+                pos[i*3] = s.x; pos[i*3+1] = s.y; pos[i*3+2] = s.z;
+                
+                const val = (isHeatmap && s.value === null) ? (s.estimatedValue || 0) : s.value;
+                if(val === null) {
+                    color.set(0xffffff);
+                } else {
+                    const t = Math.min(Math.max(val / 100, 0), 1);
+                    color.setHSL(0.5 - (t * 0.5), 1, 0.5);
+                }
+                cols[i*3] = color.r; cols[i*3+1] = color.g; cols[i*3+2] = color.b;
+            });
+
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+            pointsMesh = new THREE.Points(geo, new THREE.PointsMaterial({ size: 1.2, vertexColors: true, sizeAttenuation: true }));
+            scene.add(pointsMesh);
+        }
+
+        function runAnalysis() {
+            const valid = state.samples.filter(s => s.value !== null);
+            if(valid.length === 0) return;
+
+            const avg = valid.reduce((a, b) => a + b.value, 0) / valid.length;
+            document.getElementById('stat-avg-comp').innerText = avg.toFixed(2) + '%';
+            document.getElementById('stat-input-count').innerText = `${valid.length} / ${state.samples.length}`;
+
+            state.samples.forEach(s => {
+                if(s.value === null) {
+                    let t = 0, b = 0;
+                    valid.forEach(v => {
+                        const d = Math.max(Math.sqrt((s.x-v.x)**2 + (s.y-v.y)**2 + (s.z-v.z)**2), 0.1);
+                        const w = 1 / (d**2);
+                        t += v.value * w; b += w;
+                    });
+                    s.estimatedValue = t / b;
                 }
             });
-
-            // 입력된 값들을 가져오기
-            const mesoA = parseFloat(document.getElementById('mesoA').value);
-            const massA = parseFloat(document.getElementById('massA').value);
-            const mesoB = parseFloat(document.getElementById('mesoB').value);
-            const massB = parseFloat(document.getElementById('massB').value);
-            const mesoProduct = parseFloat(document.getElementById('mesoProduct').value);
-
-            // 입력된 값의 개수 확인
-            const filledCount = [mesoA, massA, mesoB, massB, mesoProduct].filter(v => !isNaN(v)).length;
-            if (filledCount !== 4) {
-                return; // 4개의 값이 아니면 계산하지 않고 종료
-            }
-
-            // 비어있는 필드를 찾고 계산 수행
-            let calculatedValue = null;
-            let missingFieldId = null;
-
-            if (isNaN(mesoA)) {
-                missingFieldId = 'mesoA';
-                if (massA === 0) return; // 분모가 0이면 계산 불가
-                calculatedValue = ((mesoProduct * (massA + massB)) - (mesoB * massB)) / massA;
-            } else if (isNaN(massA)) {
-                missingFieldId = 'massA';
-                if (mesoA === mesoProduct) return;
-                calculatedValue = (massB * (mesoProduct - mesoB)) / (mesoA - mesoProduct);
-                if (calculatedValue < 0) return; // 질량은 음수가 될 수 없음
-            } else if (isNaN(mesoB)) {
-                missingFieldId = 'mesoB';
-                if (massB === 0) return; // 분모가 0이면 계산 불가
-                calculatedValue = ((mesoProduct * (massA + massB)) - (mesoA * massA)) / massB;
-            } else if (isNaN(massB)) {
-                missingFieldId = 'massB';
-                if (mesoB === mesoProduct) return;
-                calculatedValue = (massA * (mesoA - mesoProduct)) / (mesoProduct - mesoB);
-                if (calculatedValue < 0) return; // 질량은 음수가 될 수 없음
-            } else if (isNaN(mesoProduct)) {
-                missingFieldId = 'mesoProduct';
-                const totalMesoMass = (mesoA * massA) + (mesoB * massB);
-                const totalMass = massA + massB;
-                if (totalMass === 0) return;
-                calculatedValue = (totalMesoMass / totalMass);
-            }
-
-            // 계산된 값을 해당 입력란에 채우고, 입력 불가능 상태로 변경
-            if (calculatedValue !== null) {
-                const inputElement = document.getElementById(missingFieldId);
-                // meso 비율은 소수점으로, 질량은 그대로 표시
-                inputElement.value = calculatedValue.toFixed(2);
-                inputElement.readOnly = true;
-            }
+            renderPoints(true);
         }
+
+        function updateSampleListUI() {
+            const list = document.getElementById('sample-data-list');
+            list.innerHTML = '';
+            state.samples.forEach((s, i) => {
+                const row = document.createElement('div');
+                row.className = `flex items-center gap-2 bg-gray-800 p-2 rounded border transition ${s.value !== null ? 'border-blue-900/50 bg-blue-900/10' : 'border-gray-700'}`;
+                row.innerHTML = `
+                    <span class="text-[9px] font-mono text-gray-500 w-6">#${i+1}</span>
+                    <div class="flex-1 text-[10px] text-gray-400">Y: ${s.y.toFixed(1)}m</div>
+                    <input type="number" value="${s.value !== null ? s.value : ''}" class="w-14 bg-gray-950 text-[10px] border border-gray-600 rounded p-1 text-right text-white focus:border-blue-500 outline-none">
+                `;
+                row.querySelector('input').addEventListener('input', (e) => {
+                    const v = parseFloat(e.target.value);
+                    state.samples[i].value = isNaN(v) ? null : v;
+                    renderPoints(false);
+                });
+                list.appendChild(row);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- UI Events ---
+        document.getElementById('tab-design-btn').addEventListener('click', (e) => {
+            state.mode = 'design';
+            document.getElementById('section-design').classList.remove('hidden');
+            document.getElementById('section-analysis').classList.add('hidden');
+            document.getElementById('click-hint').classList.add('hidden');
+            e.target.className = "flex-1 py-4 text-sm tab-active";
+            document.getElementById('tab-analysis-btn').className = "flex-1 py-4 text-sm text-gray-400 hover:text-white transition";
+            document.getElementById('mode-badge').innerText = "DESIGN MODE";
+            document.getElementById('mode-badge').className = "px-3 py-1 rounded-full bg-blue-500/20 border border-blue-500 text-blue-400 text-xs font-bold inline-block";
+            renderPoints(false);
+            hidePopup();
+        });
+
+        document.getElementById('tab-analysis-btn').addEventListener('click', (e) => {
+            state.mode = 'analysis';
+            document.getElementById('section-design').classList.add('hidden');
+            document.getElementById('section-analysis').classList.remove('hidden');
+            document.getElementById('click-hint').classList.remove('hidden');
+            e.target.className = "flex-1 py-4 text-sm tab-active";
+            document.getElementById('tab-design-btn').className = "flex-1 py-4 text-sm text-gray-400 hover:text-white transition";
+            document.getElementById('mode-badge').innerText = "ANALYSIS MODE";
+            document.getElementById('mode-badge').className = "px-3 py-1 rounded-full bg-green-500/20 border border-green-500 text-green-400 text-xs font-bold inline-block";
+        });
+
+        document.getElementById('param-radius').addEventListener('input', (e) => { state.r = parseFloat(e.target.value); document.getElementById('val-radius').innerText = state.r.toFixed(1)+' m'; renderTank(); });
+        document.getElementById('param-hcyl').addEventListener('input', (e) => { state.hcyl = parseFloat(e.target.value); document.getElementById('val-hcyl').innerText = state.hcyl.toFixed(1)+' m'; renderTank(); });
+        document.getElementById('param-hcone').addEventListener('input', (e) => { state.hcone = parseFloat(e.target.value); document.getElementById('val-hcone').innerText = state.hcone.toFixed(1)+' m'; renderTank(); });
+        document.getElementById('param-samples').addEventListener('input', (e) => { state.n = parseInt(e.target.value); document.getElementById('val-samples').innerText = state.n; });
+        document.getElementById('btn-generate').addEventListener('click', generateSamples);
+        document.getElementById('btn-interpolate').addEventListener('click', runAnalysis);
+
+        initScene();
+        generateSamples();
     </script>
 </body>
 </html>
