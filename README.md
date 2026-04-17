@@ -12,3 +12,7 @@ https://sonmanwoo.github.io/BioProcess_Lab/OderQA.html
 
 3. 원유 탱크 내 조성 분포 계산 앱 (컨셉 제안용)<br />
 https://sonmanwoo.github.io/BioProcess_Lab/Oil_Tank_Sampling.html
+
+4. PSA 공정 최적화 방법론에 따른 다목적 최적화 결과 Contour plot 시각화 (컨셉 제안용)<br />
+https://sonmanwoo.github.io/BioProcess_Lab/psa_comparison_v3.html
+
