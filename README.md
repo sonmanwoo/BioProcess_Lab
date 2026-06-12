@@ -16,3 +16,6 @@ https://sonmanwoo.github.io/BioProcess_Lab/Oil_Tank_Sampling.html
 4. PSA 공정 최적화 방법론에 따른 다목적 최적화 결과 Contour plot 시각화 (컨셉 제안용)<br />
 https://sonmanwoo.github.io/BioProcess_Lab/psa_comparison_v3.html
 
+5. 발효액 MF·희석여과(DF) 시뮬레이터 (컨셉 제안용)<br />
+https://sonmanwoo.github.io/BioProcess_Lab/DF_simulator.html
+

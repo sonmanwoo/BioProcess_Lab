@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>발효액 MF · 희석여과(DF) 시뮬레이터</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  :root{
+    --paper:#f4f1e9;
+    --paper-2:#efeadd;
+    --ink:#1d1c1a;
+    --ink-soft:#54514a;
+    --line:#d6cfbd;
+    --line-2:#c4bba4;
+    --permeate:#0f766e;      /* 처리액(물/투과) - teal */
+    --permeate-soft:#0f766e1a;
+    --retentate:#b1480e;     /* 농축액 - rust */
+    --retentate-soft:#b1480e14;
+    --accent:#4b3f8f;        /* violet ink accent */
+    --good:#2f7d4f;
+    --warn:#a8430f;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:"Pretendard Variable",Pretendard,-apple-system,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:var(--sans);
+    color:var(--ink);
+    background:
+      radial-gradient(circle at 12% 8%, #ffffff55, transparent 40%),
+      repeating-linear-gradient(0deg, transparent, transparent 31px, #00000008 31px, #00000008 32px),
+      var(--paper);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    padding:28px 18px 70px;
+  }
+  .wrap{max-width:1100px;margin:0 auto;}
+
+  /* Header */
+  header{
+    border:1.5px solid var(--ink);
+    background:var(--paper-2);
+    box-shadow:6px 6px 0 #1d1c1a;
+    padding:22px 26px;
+    margin-bottom:26px;
+    position:relative;
+  }
+  header .tag{
+    font-family:var(--mono);
+    font-size:11px;letter-spacing:2px;text-transform:uppercase;
+    color:var(--permeate);font-weight:600;
+  }
+  header h1{
+    font-size:clamp(22px,4vw,33px);
+    margin:6px 0 4px;font-weight:800;letter-spacing:-.5px;
+  }
+  header p{margin:0;color:var(--ink-soft);font-size:14px;max-width:760px;}
+  header .corner{
+    position:absolute;top:-1.5px;right:-1.5px;
+    background:var(--ink);color:var(--paper);
+    font-family:var(--mono);font-size:11px;letter-spacing:1px;
+    padding:4px 10px;
+  }
+
+  .grid{display:grid;grid-template-columns:340px 1fr;gap:24px;align-items:start;}
+  @media(max-width:880px){.grid{grid-template-columns:1fr;}}
+
+  .panel{
+    border:1.5px solid var(--ink);
+    background:#fbf9f3;
+    box-shadow:5px 5px 0 #1d1c1a;
+  }
+  .panel > .ph{
+    border-bottom:1.5px solid var(--ink);
+    background:var(--ink);color:var(--paper);
+    padding:9px 16px;font-family:var(--mono);
+    font-size:12px;letter-spacing:1.5px;text-transform:uppercase;font-weight:600;
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .panel .pbody{padding:18px 16px;}
+
+  /* Controls */
+  .field{margin-bottom:18px;}
+  .field:last-child{margin-bottom:4px;}
+  .field label{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-size:13px;font-weight:600;margin-bottom:7px;
+  }
+  .field label .unit{font-family:var(--mono);font-size:11px;color:var(--ink-soft);font-weight:500;}
+  .field .row{display:flex;gap:10px;align-items:center;}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;flex:1;height:4px;
+    background:var(--line-2);border-radius:0;outline:none;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:16px;height:22px;background:var(--ink);
+    cursor:pointer;border:0;border-radius:1px;
+  }
+  input[type=range]::-moz-range-thumb{width:16px;height:22px;background:var(--ink);border:0;cursor:pointer;border-radius:1px;}
+  input[type=number]{
+    width:88px;font-family:var(--mono);font-size:15px;font-weight:600;
+    border:1.5px solid var(--ink);background:#fff;padding:6px 8px;text-align:right;
+    color:var(--ink);border-radius:0;
+  }
+  input[type=number]:focus{outline:none;background:#fffef8;box-shadow:2px 2px 0 var(--permeate);}
+
+  details.adv{margin-top:6px;border-top:1px dashed var(--line-2);padding-top:12px;}
+  details.adv summary{
+    cursor:pointer;font-size:12px;font-family:var(--mono);color:var(--accent);
+    letter-spacing:.5px;font-weight:600;list-style:none;margin-bottom:12px;
+  }
+  details.adv summary::before{content:"▸ ";}
+  details.adv[open] summary::before{content:"▾ ";}
+
+  /* Results */
+  .metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:0;border:1.5px solid var(--ink);background:var(--ink);}
+  @media(max-width:540px){.metrics{grid-template-columns:1fr;}}
+  .metric{background:#fbf9f3;padding:15px 16px;}
+  .metric .k{font-size:11px;color:var(--ink-soft);font-weight:600;letter-spacing:.3px;display:flex;align-items:center;gap:6px;}
+  .metric .v{font-family:var(--mono);font-size:27px;font-weight:700;margin-top:4px;line-height:1;}
+  .metric .v small{font-size:14px;font-weight:600;color:var(--ink-soft);}
+  .metric .sub{font-size:11px;color:var(--ink-soft);font-family:var(--mono);margin-top:4px;}
+  .dot{width:9px;height:9px;display:inline-block;border-radius:1px;}
+  .dot.p{background:var(--permeate);}
+  .dot.r{background:var(--retentate);}
+  .dot.a{background:var(--accent);}
+
+  .chartcard{margin-top:24px;}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;font-family:var(--mono);}
+  .legend span{display:flex;align-items:center;gap:6px;}
+  .legend i{width:18px;height:3px;display:inline-block;}
+  svg{display:block;width:100%;height:auto;}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);font-family:var(--mono);}
+  th{background:var(--paper-2);font-weight:700;color:var(--ink);border-bottom:1.5px solid var(--ink);font-size:11px;letter-spacing:.3px;}
+  td:first-child,th:first-child{text-align:center;}
+  tr.now td{background:var(--permeate-soft);font-weight:700;}
+  .tablewrap{overflow-x:auto;}
+
+  .note{
+    margin-top:24px;border:1.5px solid var(--line-2);background:#fbf9f3;
+    padding:16px 18px;font-size:12.5px;color:var(--ink-soft);
+  }
+  .note b{color:var(--ink);}
+  .note code{font-family:var(--mono);background:var(--paper-2);padding:1px 5px;border:1px solid var(--line);font-size:11.5px;}
+  .note h4{margin:0 0 8px;color:var(--ink);font-size:13px;}
+
+  .preset{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .preset button{
+    font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;
+    border:1.5px solid var(--ink);background:#fff;padding:6px 11px;
+    box-shadow:2px 2px 0 var(--ink);transition:.05s;
+  }
+  .preset button:hover{background:var(--paper-2);}
+  .preset button:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--ink);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="corner">FMX · MF</div>
+    <div class="tag">Diafiltration Simulator</div>
+    <h1>발효액 MF · 희석여과(DF) 시뮬레이터</h1>
+    <p>Feed·농축율·DF 회수율·DF 횟수를 입력하면 <b>처리액(투과액)의 양과 평균 농도, 총 회수율</b>이 산출됩니다.
+       물로 세척할수록 회수율은 100%에 수렴하지만, 부피가 늘어 처리액 농도는 떨어집니다 — 그 상충관계를 한눈에 확인하세요.</p>
+  </header>
+
+  <div class="grid">
+
+    <!-- ============ INPUTS ============ -->
+    <div class="panel">
+      <div class="ph"><span>입력 조건</span><span>INPUT</span></div>
+      <div class="pbody">
+
+        <div class="preset">
+          <button onclick="loadPreset(9.98,73,50,0)">Test_1 기준</button>
+          <button onclick="loadPreset(10.02,66,50,0)">Test_2 기준</button>
+        </div>
+
+        <div class="field">
+          <label>Feed 양 (원액)<span class="unit">kg</span></label>
+          <div class="row">
+            <input type="range" id="feed_r" min="1" max="50" step="0.1" value="10">
+            <input type="number" id="feed" min="0" step="0.1" value="10">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>농축율 <span class="unit">% (처리액/Feed)</span></label>
+          <div class="row">
+            <input type="range" id="conc_r" min="10" max="95" step="1" value="73">
+            <input type="number" id="conc" min="1" max="99" step="1" value="73">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>DF 1회당 회수율 <span class="unit">% (잔류물 기준)</span></label>
+          <div class="row">
+            <input type="range" id="dfrec_r" min="5" max="95" step="1" value="50">
+            <input type="number" id="dfrec" min="1" max="99" step="1" value="50">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>DF 횟수 <span class="unit">회</span></label>
+          <div class="row">
+            <input type="range" id="dfn_r" min="0" max="12" step="1" value="3">
+            <input type="number" id="dfn" min="0" max="30" step="1" value="3">
+          </div>
+        </div>
+
+        <details class="adv">
+          <summary>고급 설정</summary>
+          <div class="field">
+            <label>원액 초기 농도 <span class="unit">g/L 등 (상대단위)</span></label>
+            <div class="row">
+              <input type="range" id="c0_r" min="1" max="500" step="1" value="100">
+              <input type="number" id="c0" min="0.01" step="0.1" value="100">
+            </div>
+          </div>
+          <div class="field">
+            <label>DF 1회당 희석배수 <span class="unit">diavolume (×농축액부피)</span></label>
+            <div class="row">
+              <input type="range" id="dia_r" min="0.2" max="3" step="0.1" value="1">
+              <input type="number" id="dia" min="0.1" step="0.1" value="1">
+            </div>
+          </div>
+        </details>
+
+      </div>
+    </div>
+
+    <!-- ============ RESULTS ============ -->
+    <div>
+      <div class="panel">
+        <div class="ph"><span>산출 결과</span><span id="caseLabel">DF 3회</span></div>
+        <div class="pbody">
+          <div class="metrics">
+            <div class="metric">
+              <div class="k"><span class="dot p"></span>처리액 양 (투과액)</div>
+              <div class="v" id="m_vol">—<small> kg</small></div>
+              <div class="sub" id="m_vol_sub"></div>
+            </div>
+            <div class="metric">
+              <div class="k"><span class="dot p"></span>처리액 평균 농도</div>
+              <div class="v" id="m_conc">—<small> %</small></div>
+              <div class="sub" id="m_conc_sub"></div>
+            </div>
+            <div class="metric">
+              <div class="k"><span class="dot a"></span>총 회수율</div>
+              <div class="v" id="m_rec">—<small> %</small></div>
+              <div class="sub" id="m_rec_sub"></div>
+            </div>
+            <div class="metric">
+              <div class="k"><span class="dot r"></span>농축액 잔류 / 사용 물량</div>
+              <div class="v" id="m_loss">—<small> %</small></div>
+              <div class="sub" id="m_water_sub"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHART -->
+      <div class="panel chartcard">
+        <div class="ph"><span>DF 횟수에 따른 변화</span><span>TRADE-OFF</span></div>
+        <div class="pbody">
+          <div class="legend" style="margin-bottom:10px;">
+            <span><i style="background:var(--accent)"></i>총 회수율 (%)</span>
+            <span><i style="background:var(--permeate)"></i>처리액 평균농도 (원액 대비 %)</span>
+            <span><i style="background:var(--retentate);height:10px;width:10px;border-radius:50%"></i>현재 설정</span>
+          </div>
+          <svg id="chart" viewBox="0 0 720 340" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+      </div>
+
+      <!-- TABLE -->
+      <div class="panel chartcard">
+        <div class="ph"><span>단계별 상세표</span><span>STAGE TABLE</span></div>
+        <div class="pbody tablewrap">
+          <table id="tbl">
+            <thead>
+              <tr>
+                <th>DF</th><th>처리액 양 (kg)</th><th>총 회수율 (%)</th>
+                <th>처리액 농도</th><th>원액대비 (%)</th><th>VCF(누적)</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTE -->
+  <div class="note">
+    <h4>계산 모델 & 가정</h4>
+    제품이 막을 자유 투과(sieving ≈ 1, 세포·고형분만 농축)하는 MF 공정을 가정합니다. 단위는 밀도 ≈ 1로 보아 kg(=L)로 통일했습니다.
+    <ul style="margin:10px 0 0;padding-left:20px;">
+      <li><b>농축 단계:</b> 처리액 = Feed×농축율, 농축액(retentate) = Feed×(1−농축율), 이 단계 회수율 = 농축율. 이때 처리액 농도 = 원액 농도(100%).</li>
+      <li><b>DF 단계:</b> 매 회 농축액에 물(<code>희석배수 × 농축액부피</code>)을 넣고 다시 농축. 1회마다 <b>잔류 제품의 α(=DF 회수율)</b>를 추가 회수.</li>
+      <li><b>총 회수율</b> = 1 − (1−농축율)(1−α)<sup>N</sup> &nbsp;·&nbsp; <b>처리액 양</b> = Feed×농축율 + N×희석배수×Feed×(1−농축율)</li>
+      <li><b>처리액 평균농도(원액 대비)</b> = 총회수율 ÷ (처리액양 ÷ Feed) — 회수율은 ↑, 부피도 ↑ 이므로 농도는 점차 ↓.</li>
+    </ul>
+    <p style="margin:12px 0 0;font-size:11.5px;">※ 실제 회수율은 물량(diavolume)과 연동되며 막 특성·세척효율에 따라 달라집니다. 본 도구는 경향 파악·계획용 추정값입니다.</p>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var ids = ["feed","conc","dfrec","dfn","c0","dia"];
+  // sync slider <-> number
+  ids.forEach(function(id){
+    var num = document.getElementById(id);
+    var rng = document.getElementById(id+"_r");
+    if(rng){
+      rng.addEventListener("input", function(){ num.value = rng.value; calc(); });
+      num.addEventListener("input", function(){
+        var v = parseFloat(num.value);
+        if(!isNaN(v)){
+          if(v < parseFloat(rng.min)) rng.value = rng.min;
+          else if(v > parseFloat(rng.max)) rng.value = rng.max;
+          else rng.value = v;
+        }
+        calc();
+      });
+    }
+  });
+
+  window.loadPreset = function(feed,conc,dfrec,dfn){
+    set("feed",feed); set("conc",conc); set("dfrec",dfrec); set("dfn",dfn);
+    calc();
+  };
+  function set(id,val){
+    document.getElementById(id).value = val;
+    var r = document.getElementById(id+"_r"); if(r) r.value = val;
+  }
+  function val(id){ return parseFloat(document.getElementById(id).value); }
+
+  // model: returns stage object at given N
+  function stageAt(feed, c, a, N, c0, dia){
+    var VR = feed*(1-c);                 // retentate volume (kg)
+    var M0 = feed*c0;                    // total product (relative mass)
+    var X  = 1 - (1-c)*Math.pow(1-a, N); // total recovery fraction
+    var recovered = M0*X;
+    var permVol = feed*c + N*dia*VR;     // total permeate volume (kg)
+    var avgConc = permVol>0 ? recovered/permVol : 0;     // absolute conc unit
+    var relConc = permVol>0 ? (X/(c + N*dia*(1-c)))*100 : 100; // % of feed conc
+    var lossPct = (1-c)*Math.pow(1-a, N)*100;            // product left in retentate %
+    var water   = N*dia*VR;
+    var vcf     = feed/VR;               // concentration VCF (retentate side) constant
+    return {N:N, permVol:permVol, rec:X*100, avgConc:avgConc, relConc:relConc,
+            loss:lossPct, water:water, VR:VR, vcf:vcf};
+  }
+
+  function calc(){
+    var feed = val("feed"), c = val("conc")/100, a = val("dfrec")/100,
+        N = Math.round(val("dfn")), c0 = val("c0"), dia = val("dia");
+    if([feed,c,a,N,c0,dia].some(function(x){return isNaN(x);})) return;
+    if(N<0) N=0;
+
+    var s = stageAt(feed,c,a,N,c0,dia);
+
+    document.getElementById("caseLabel").textContent = "DF " + N + "회";
+    document.getElementById("m_vol").innerHTML = fmt(s.permVol,2) + "<small> kg</small>";
+    document.getElementById("m_vol_sub").textContent = "원액 대비 " + fmt(s.permVol/feed,2) + "배";
+    document.getElementById("m_conc").innerHTML = fmt(s.relConc,1) + "<small> %</small>";
+    document.getElementById("m_conc_sub").textContent = "= " + fmt(s.avgConc,2) + " (원액 " + fmt(c0,1) + " 기준)";
+    document.getElementById("m_rec").innerHTML = fmt(s.rec,1) + "<small> %</small>";
+    document.getElementById("m_rec_sub").textContent = "잔류손실 " + fmt(s.loss,1) + "%";
+    document.getElementById("m_loss").innerHTML = fmt(s.loss,1) + "<small> %</small>";
+    document.getElementById("m_water_sub").textContent = "사용 물량 " + fmt(s.water,2) + " kg";
+
+    drawChart(feed,c,a,N,c0,dia);
+    buildTable(feed,c,a,N,c0,dia);
+  }
+
+  function fmt(x,d){
+    if(!isFinite(x)) return "—";
+    return x.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d});
+  }
+
+  function buildTable(feed,c,a,N,c0,dia){
+    var tb = document.querySelector("#tbl tbody"); tb.innerHTML="";
+    var maxRow = Math.max(N, 0);
+    for(var i=0;i<=maxRow;i++){
+      var s = stageAt(feed,c,a,i,c0,dia);
+      var tr = document.createElement("tr");
+      if(i===N) tr.className="now";
+      tr.innerHTML =
+        "<td>"+i+"</td>"+
+        "<td>"+fmt(s.permVol,2)+"</td>"+
+        "<td>"+fmt(s.rec,1)+"</td>"+
+        "<td>"+fmt(s.avgConc,2)+"</td>"+
+        "<td>"+fmt(s.relConc,1)+"</td>"+
+        "<td>"+fmt(s.permVol/(feed - s.permVol > 0.0001 ? (feed - s.permVol) : feed),2)+"</td>";
+      tb.appendChild(tr);
+    }
+  }
+
+  function drawChart(feed,c,a,N,c0,dia){
+    var svg = document.getElementById("chart");
+    var W=720, H=340, mL=46, mR=20, mT=18, mB=42;
+    var maxN = Math.max(N+2, 6);
+    var pw = W-mL-mR, ph = H-mT-mB;
+    function px(n){ return mL + (n/maxN)*pw; }
+    function py(v){ return mT + (1 - v/100)*ph; }   // value 0..100
+
+    var recPts=[], conPts=[];
+    for(var i=0;i<=maxN;i++){
+      var s = stageAt(feed,c,a,i,c0,dia);
+      recPts.push([px(i),py(s.rec)]);
+      conPts.push([px(i),py(s.relConc)]);
+    }
+    function path(pts){ return pts.map(function(p,i){return (i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1);}).join(" "); }
+
+    var g="";
+    // gridlines + y labels
+    for(var v=0; v<=100; v+=20){
+      var y=py(v);
+      g+='<line x1="'+mL+'" y1="'+y+'" x2="'+(W-mR)+'" y2="'+y+'" stroke="#d6cfbd" stroke-width="1"/>';
+      g+='<text x="'+(mL-8)+'" y="'+(y+4)+'" font-size="11" fill="#54514a" text-anchor="end" font-family="ui-monospace,monospace">'+v+'</text>';
+    }
+    // x labels
+    for(var i=0;i<=maxN;i++){
+      g+='<text x="'+px(i)+'" y="'+(H-mB+20)+'" font-size="11" fill="#54514a" text-anchor="middle" font-family="ui-monospace,monospace">'+i+'</text>';
+    }
+    g+='<text x="'+(mL+pw/2)+'" y="'+(H-6)+'" font-size="11.5" fill="#1d1c1a" text-anchor="middle" font-weight="700">DF 횟수 (회)</text>';
+
+    // lines
+    g+='<path d="'+path(conPts)+'" fill="none" stroke="#0f766e" stroke-width="2.5"/>';
+    g+='<path d="'+path(recPts)+'" fill="none" stroke="#4b3f8f" stroke-width="2.5" stroke-dasharray="1 0"/>';
+
+    // dots
+    recPts.forEach(function(p){ g+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="3" fill="#4b3f8f"/>'; });
+    conPts.forEach(function(p){ g+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="3" fill="#0f766e"/>'; });
+
+    // current N marker
+    var cx=px(N);
+    g+='<line x1="'+cx+'" y1="'+mT+'" x2="'+cx+'" y2="'+(H-mB)+'" stroke="#b1480e" stroke-width="1.5" stroke-dasharray="4 3"/>';
+    var sNow=stageAt(feed,c,a,N,c0,dia);
+    g+='<circle cx="'+cx+'" cy="'+py(sNow.rec)+'" r="5.5" fill="#fff" stroke="#b1480e" stroke-width="2.5"/>';
+    g+='<circle cx="'+cx+'" cy="'+py(sNow.relConc)+'" r="5.5" fill="#fff" stroke="#b1480e" stroke-width="2.5"/>';
+
+    // frame
+    g+='<rect x="'+mL+'" y="'+mT+'" width="'+pw+'" height="'+ph+'" fill="none" stroke="#1d1c1a" stroke-width="1.5"/>';
+
+    svg.innerHTML=g;
+  }
+
+  calc();
+})();
+</script>
+</body>
+</html>
