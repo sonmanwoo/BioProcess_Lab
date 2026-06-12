@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>제품 품질 평가 기록지</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.plot.ly/plotly-2.28.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -174,17 +178,20 @@
         }
 
         // Page switching logic
+        const navActiveClasses = ['bg-indigo-50', 'text-indigo-700', 'font-semibold'];
+        function setActiveNav(activeBtn, inactiveBtn) {
+            activeBtn.classList.add(...navActiveClasses);
+            inactiveBtn.classList.remove(...navActiveClasses);
+        }
         function showPage(pageName) {
             if (pageName === 'evaluator') {
                 evaluatorPage.classList.remove('hidden');
                 adminPage.classList.add('hidden');
-                evaluatorNav.classList.add('bg-gray-200');
-                adminNav.classList.remove('bg-gray-200');
+                setActiveNav(evaluatorNav, adminNav);
             } else {
                 evaluatorPage.classList.add('hidden');
                 adminPage.classList.remove('hidden');
-                evaluatorNav.classList.remove('bg-gray-200');
-                adminNav.classList.add('bg-gray-200');
+                setActiveNav(adminNav, evaluatorNav);
                 // Re-render admin page content when it's shown
                 updateAdminUI();
             }
@@ -755,8 +762,8 @@ AAEAAAASAQAABAAwQ0ZGACi0p/4AAAI0AAAAWEdERUYAChmU8AAACRAAAAApT1MvMg8m6m8AAAXgAAAA
     </script>
     <style>
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f1f5f9;
+            font-family: 'Pretendard', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f8fafc; /* slate-50 */
         }
 
         @keyframes fadeIn {
@@ -779,192 +786,203 @@ AAEAAAASAQAABAAwQ0ZGACi0p/4AAAI0AAAAWEdERUYAChmU8AAACRAAAAApT1MvMg8m6m8AAAXgAAAA
 
         .modal-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
+            inset: 0;
+            background-color: rgba(15, 23, 42, 0.5); /* slate-900 / 50 */
+            backdrop-filter: blur(2px);
             display: flex;
             justify-content: center;
             align-items: center;
             z-index: 1000;
+            padding: 1rem;
         }
 
         #signature-canvas {
-            border: 1px solid #ccc;
+            border: 1px solid #cbd5e1; /* slate-300 */
             background-color: white;
             cursor: crosshair;
+            border-radius: 0.5rem;
+            touch-action: none;
         }
+
+        /* 깔끔한 스크롤바 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        ::-webkit-scrollbar-track { background: transparent; }
     </style>
 </head>
-<body class="bg-gray-100 flex h-screen overflow-hidden">
+<body class="bg-slate-50 flex h-screen overflow-hidden text-slate-800">
     <!-- Sidebar -->
-    <nav class="w-64 bg-white shadow-xl p-6 space-y-4 flex flex-col items-start border-r border-gray-200">
-        <div class="text-xl font-bold text-gray-800">메뉴</div>
-        <button id="nav-evaluator" class="w-full text-left py-2 px-4 rounded-md text-gray-700 hover:bg-gray-200 transition-colors">
-            평가자 페이지
-        </button>
-        <button id="nav-admin" class="w-full text-left py-2 px-4 rounded-md text-gray-700 hover:bg-gray-200 transition-colors">
-            관리자 페이지
-        </button>
-        <p id="user-id" class="text-sm text-gray-400 mt-auto">User ID: Loading...</p>
+    <nav class="w-64 shrink-0 bg-white p-5 flex flex-col border-r border-slate-200">
+        <div class="px-2 mb-6">
+            <div class="text-base font-bold text-slate-900">제품 품질 평가</div>
+            <div class="text-xs text-slate-400 mt-0.5">BioProcess Lab</div>
+        </div>
+        <div class="space-y-1">
+            <button id="nav-evaluator" class="w-full text-left py-2.5 px-3 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition-colors">
+                평가자 페이지
+            </button>
+            <button id="nav-admin" class="w-full text-left py-2.5 px-3 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition-colors">
+                관리자 페이지
+            </button>
+        </div>
+        <div class="mt-auto pt-4 border-t border-slate-100">
+            <p class="text-[11px] text-slate-400 break-all">User ID: <span id="user-id">Loading...</span></p>
+        </div>
     </nav>
     
     <!-- Main Content Area -->
-    <div class="flex-1 p-8 overflow-y-auto">
-        <header class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-800">제품 품질 평가</h1>
-            <p class="text-gray-500 mt-2">개별 평가 기록 및 종합 시각화</p>
+    <div class="flex-1 p-6 md:p-10 overflow-y-auto">
+        <header class="max-w-5xl mx-auto mb-8">
+            <h1 class="text-2xl font-bold text-slate-900">제품 품질 평가</h1>
+            <p class="text-sm text-slate-500 mt-1">개별 평가 기록 및 종합 시각화</p>
         </header>
 
         <!-- Evaluator Page -->
-        <div id="evaluator-page" class="space-y-8">
-            <section class="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                <h2 class="text-2xl font-semibold text-gray-700 mb-4">개별 평가 기록지</h2>
-                <form id="evaluation-form" class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div id="evaluator-page" class="max-w-5xl mx-auto space-y-8">
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8">
+                <h2 class="text-lg font-semibold text-slate-800 mb-1">개별 평가 기록지</h2>
+                <p class="text-sm text-slate-400 mb-6">관능 평가 항목을 입력하고 기록을 저장하세요.</p>
+                <form id="evaluation-form" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div>
-                            <label for="eval-date" class="block text-sm font-medium text-gray-700">평가일시</label>
-                            <input type="datetime-local" id="eval-date" name="eval-date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <label for="eval-date" class="block text-sm font-medium text-slate-600 mb-1.5">평가일시</label>
+                            <input type="datetime-local" id="eval-date" name="eval-date" required class="block w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-sm p-2.5">
                         </div>
                         <div>
-                            <label for="eval-place" class="block text-sm font-medium text-gray-700">평가 장소</label>
-                            <select id="eval-place" name="eval-place" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <label for="eval-place" class="block text-sm font-medium text-slate-600 mb-1.5">평가 장소</label>
+                            <select id="eval-place" name="eval-place" required class="block w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-sm p-2.5">
                                 <option value="군산 실증 플랜트">군산 실증 플랜트</option>
                                 <option value="대전 기술연구소">대전 기술연구소</option>
                                 <option value="기타">기타</option>
                             </select>
                         </div>
                         <div>
-                            <label for="sample-code" class="block text-sm font-medium text-gray-700">시료 코드</label>
-                            <input type="text" id="sample-code" name="sample-code" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <label for="sample-code" class="block text-sm font-medium text-slate-600 mb-1.5">시료 코드</label>
+                            <input type="text" id="sample-code" name="sample-code" required class="block w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-sm p-2.5">
                         </div>
                         <div>
-                            <label for="evaluator" class="block text-sm font-medium text-gray-700">평가자</label>
-                            <input type="text" id="evaluator" name="evaluator" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <label for="evaluator" class="block text-sm font-medium text-slate-600 mb-1.5">평가자</label>
+                            <input type="text" id="evaluator" name="evaluator" required class="block w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-sm p-2.5">
                         </div>
                     </div>
-    
+
                     <!-- Odor Intensity -->
-                    <div class="space-y-2">
-                        <label class="block text-sm font-medium text-gray-700">냄새 강도</label>
-                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-                            <div class="flex items-center">
-                                <input id="odor-10" name="odor-intensity" type="radio" value="10.0" class="h-4 w-4 text-indigo-600 border-gray-300 rounded-full focus:ring-indigo-500">
-                                <label for="odor-10" class="ml-2 text-sm text-gray-700">10.0 (무취)</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input id="odor-9.5" name="odor-intensity" type="radio" value="9.5" class="h-4 w-4 text-indigo-600 border-gray-300 rounded-full focus:ring-indigo-500">
-                                <label for="odor-9.5" class="ml-2 text-sm text-gray-700">9.5 (매우 미미)</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input id="odor-9" name="odor-intensity" type="radio" value="9.0" class="h-4 w-4 text-indigo-600 border-gray-300 rounded-full focus:ring-indigo-500">
-                                <label for="odor-9" class="ml-2 text-sm text-gray-700">9.0 (미미)</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input id="odor-8.5" name="odor-intensity" type="radio" value="8.5" class="h-4 w-4 text-indigo-600 border-gray-300 rounded-full focus:ring-indigo-500">
-                                <label for="odor-8.5" class="ml-2 text-sm text-gray-700">8.5 (약함)</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input id="odor-8" name="odor-intensity" type="radio" value="8.0" class="h-4 w-4 text-indigo-600 border-gray-300 rounded-full focus:ring-indigo-500">
-                                <label for="odor-8" class="ml-2 text-sm text-gray-700">8.0 (감지 가능)</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input id="odor-7.5" name="odor-intensity" type="radio" value="7.5" class="h-4 w-4 text-indigo-600 border-gray-300 rounded-full focus:ring-indigo-500">
-                                <label for="odor-7.5" class="ml-2 text-sm text-gray-700">7.5 이하 (강함)</label>
-                            </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-2">냄새 강도</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+                            <label class="cursor-pointer">
+                                <input id="odor-10" name="odor-intensity" type="radio" value="10.0" class="peer sr-only">
+                                <span class="flex items-center justify-center rounded-lg border border-slate-200 px-2 py-2.5 text-center text-xs sm:text-sm text-slate-600 transition-colors hover:bg-slate-50 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 peer-checked:font-semibold">10.0 · 무취</span>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input id="odor-9.5" name="odor-intensity" type="radio" value="9.5" class="peer sr-only">
+                                <span class="flex items-center justify-center rounded-lg border border-slate-200 px-2 py-2.5 text-center text-xs sm:text-sm text-slate-600 transition-colors hover:bg-slate-50 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 peer-checked:font-semibold">9.5 · 매우 미미</span>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input id="odor-9" name="odor-intensity" type="radio" value="9.0" class="peer sr-only">
+                                <span class="flex items-center justify-center rounded-lg border border-slate-200 px-2 py-2.5 text-center text-xs sm:text-sm text-slate-600 transition-colors hover:bg-slate-50 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 peer-checked:font-semibold">9.0 · 미미</span>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input id="odor-8.5" name="odor-intensity" type="radio" value="8.5" class="peer sr-only">
+                                <span class="flex items-center justify-center rounded-lg border border-slate-200 px-2 py-2.5 text-center text-xs sm:text-sm text-slate-600 transition-colors hover:bg-slate-50 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 peer-checked:font-semibold">8.5 · 약함</span>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input id="odor-8" name="odor-intensity" type="radio" value="8.0" class="peer sr-only">
+                                <span class="flex items-center justify-center rounded-lg border border-slate-200 px-2 py-2.5 text-center text-xs sm:text-sm text-slate-600 transition-colors hover:bg-slate-50 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 peer-checked:font-semibold">8.0 · 감지 가능</span>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input id="odor-7.5" name="odor-intensity" type="radio" value="7.5" class="peer sr-only">
+                                <span class="flex items-center justify-center rounded-lg border border-slate-200 px-2 py-2.5 text-center text-xs sm:text-sm text-slate-600 transition-colors hover:bg-slate-50 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 peer-checked:font-semibold">7.5↓ · 강함</span>
+                            </label>
                         </div>
                     </div>
-    
+
                     <div>
-                        <label for="odor-characteristic" class="block text-sm font-medium text-gray-700">냄새 특성</label>
-                        <textarea id="odor-characteristic" name="odor-characteristic" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="예시: 구수한 향, 시큼한 향, 요거트 향, 알콜 향 등"></textarea>
+                        <label for="odor-characteristic" class="block text-sm font-medium text-slate-600 mb-1.5">냄새 특성</label>
+                        <textarea id="odor-characteristic" name="odor-characteristic" rows="2" class="block w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-sm p-2.5" placeholder="예시: 구수한 향, 시큼한 향, 요거트 향, 알콜 향 등"></textarea>
                     </div>
                     <div>
-                        <label for="pleasantness" class="block text-sm font-medium text-gray-700">쾌적도</label>
-                        <textarea id="pleasantness" name="pleasantness" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="예시: 불쾌함, 자극적임, 향기로움, 역겨움 등"></textarea>
+                        <label for="pleasantness" class="block text-sm font-medium text-slate-600 mb-1.5">쾌적도</label>
+                        <textarea id="pleasantness" name="pleasantness" rows="2" class="block w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-sm p-2.5" placeholder="예시: 불쾌함, 자극적임, 향기로움, 역겨움 등"></textarea>
                     </div>
                     <div>
-                        <label for="remarks" class="block text-sm font-medium text-gray-700">기타 특이사항</label>
-                        <textarea id="remarks" name="remarks" rows="2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="예시: 조업 또는 관능 평가 중 특이사항을 기재 바랍니다."></textarea>
+                        <label for="remarks" class="block text-sm font-medium text-slate-600 mb-1.5">기타 특이사항</label>
+                        <textarea id="remarks" name="remarks" rows="2" class="block w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-sm p-2.5" placeholder="예시: 조업 또는 관능 평가 중 특이사항을 기재 바랍니다."></textarea>
                     </div>
-    
+
                     <!-- Final Evaluation -->
-                    <div class="space-y-2">
-                        <label class="block text-sm font-medium text-gray-700">최종 평가</label>
-                        <div class="flex items-center space-x-4">
-                            <span id="final-evaluation-display" class="font-normal text-gray-500">냄새 강도를 선택하세요</span>
-                        </div>
+                    <div class="flex items-center gap-3 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
+                        <span class="text-sm font-medium text-slate-600">최종 평가</span>
+                        <span id="final-evaluation-display" class="font-normal text-gray-500">냄새 강도를 선택하세요</span>
                     </div>
-    
-                    <div class="flex justify-end items-center gap-4">
+
+                    <div class="flex justify-end items-center gap-4 pt-1">
                         <div id="message-box" class="hidden px-4 py-2 rounded-md text-white transition-all duration-300"></div>
-                        <button type="submit" class="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-md shadow-md hover:bg-indigo-700 transition-colors">기록 저장</button>
+                        <button type="submit" class="px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-indigo-700 transition-colors">기록 저장</button>
                     </div>
                 </form>
             </section>
         </div>
 
         <!-- Admin Page -->
-        <div id="admin-page" class="hidden space-y-8">
+        <div id="admin-page" class="hidden max-w-5xl mx-auto space-y-8">
             <!-- Approval Section -->
-            <section class="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                <h2 class="text-2xl font-semibold text-gray-700 mb-4">품질 평가 승인</h2>
-                <div class="flex justify-between items-end mb-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-                        <div>
-                            <label for="sample-code-filter" class="block text-sm font-medium text-gray-700">승인할 시료 코드 선택</label>
-                            <select id="sample-code-filter" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></select>
-                        </div>
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8">
+                <h2 class="text-lg font-semibold text-slate-800 mb-6">품질 평가 승인</h2>
+                <div class="flex flex-wrap justify-between items-end gap-4">
+                    <div class="w-full sm:w-72">
+                        <label for="sample-code-filter" class="block text-sm font-medium text-slate-600 mb-1.5">승인할 시료 코드 선택</label>
+                        <select id="sample-code-filter" class="block w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-sm p-2.5"></select>
                     </div>
-                    <button id="download-pdf-button" class="hidden px-4 py-2 bg-red-600 text-white font-semibold rounded-md shadow-md hover:bg-red-700 transition-colors">
+                    <button id="download-pdf-button" class="hidden px-4 py-2.5 bg-rose-600 text-white text-sm font-semibold rounded-lg shadow-sm hover:bg-rose-700 transition-colors">
                         PDF 보고서 다운로드
                     </button>
                 </div>
-                
+
                 <!-- Approval UI -->
-                <div id="approval-section" class="mt-6 p-4 rounded-lg border border-gray-300 bg-white hidden">
-                    <h3 class="text-lg font-bold text-gray-800">
+                <div id="approval-section" class="mt-6 p-5 rounded-xl border border-slate-200 bg-slate-50 hidden">
+                    <h3 class="text-base font-bold text-slate-800">
                         <span id="approval-sample-code" class="text-indigo-600"></span>
                         시료 승인 상태
                     </h3>
-                    <p class="mt-2 text-sm text-gray-500">최종 평가: <span id="approval-final-status" class="font-semibold"></span></p>
+                    <p class="mt-1 text-sm text-slate-500">최종 평가: <span id="approval-final-status" class="font-semibold"></span></p>
                     <div id="approval-buttons" class="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                         <!-- Approval buttons will be rendered here -->
                     </div>
                 </div>
             </section>
-            
+
             <!-- Evaluation Table -->
-            <section class="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                <h2 class="text-2xl font-semibold text-gray-700 mb-4">평가 기록 테이블</h2>
-                <div class="overflow-x-auto rounded-lg">
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8">
+                <h2 class="text-lg font-semibold text-slate-800 mb-6">평가 기록 테이블</h2>
+                <div class="overflow-x-auto rounded-xl border border-slate-200">
                     <table class="min-w-full bg-white border-collapse">
                         <thead>
-                            <tr class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
-                                <th class="py-3 px-6 text-left">평가일</th>
-                                <th class="py-3 px-6 text-left">평가 장소</th>
-                                <th class="py-3 px-6 text-left">시료 코드</th>
-                                <th class="py-3 px-6 text-left">평가자</th>
-                                <th class="py-3 px-6 text-left">냄새 강도</th>
-                                <th class="py-3 px-6 text-left">냄새 특성</th>
-                                <th class="py-3 px-6 text-left">쾌적도</th>
-                                <th class="py-3 px-6 text-left">기타</th>
-                                <th class="py-3 px-6 text-left">최종 평가</th>
-                                <th class="py-3 px-6 text-left">관리</th>
+                            <tr class="bg-slate-50 text-slate-500 uppercase text-xs tracking-wider leading-normal">
+                                <th class="py-3 px-4 text-left font-semibold border-b border-slate-200">평가일</th>
+                                <th class="py-3 px-4 text-left font-semibold border-b border-slate-200">평가 장소</th>
+                                <th class="py-3 px-4 text-left font-semibold border-b border-slate-200">시료 코드</th>
+                                <th class="py-3 px-4 text-left font-semibold border-b border-slate-200">평가자</th>
+                                <th class="py-3 px-4 text-left font-semibold border-b border-slate-200">냄새 강도</th>
+                                <th class="py-3 px-4 text-left font-semibold border-b border-slate-200">냄새 특성</th>
+                                <th class="py-3 px-4 text-left font-semibold border-b border-slate-200">쾌적도</th>
+                                <th class="py-3 px-4 text-left font-semibold border-b border-slate-200">기타</th>
+                                <th class="py-3 px-4 text-left font-semibold border-b border-slate-200">최종 평가</th>
+                                <th class="py-3 px-4 text-left font-semibold border-b border-slate-200">관리</th>
                             </tr>
                         </thead>
-                        <tbody id="evaluation-table-body" class="text-gray-600 text-sm font-light">
+                        <tbody id="evaluation-table-body" class="text-slate-600 text-sm">
                             <!-- Data will be dynamically inserted here -->
                         </tbody>
                     </table>
                 </div>
             </section>
-    
+
             <!-- Data Visualization Section -->
-            <section class="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                <h2 class="text-2xl font-semibold text-gray-700 mb-4">데이터 시각화 (Box Plot)</h2>
-                <div id="visual-data" class="flex flex-wrap justify-center items-center space-x-4">
+            <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8">
+                <h2 class="text-lg font-semibold text-slate-800 mb-6">데이터 시각화 (Box Plot)</h2>
+                <div id="visual-data" class="flex flex-wrap justify-center items-center gap-4">
                     <!-- Plots will be dynamically inserted here -->
                 </div>
             </section>
@@ -973,32 +991,32 @@ AAEAAAASAQAABAAwQ0ZGACi0p/4AAAI0AAAAWEdERUYAChmU8AAACRAAAAApT1MvMg8m6m8AAAXgAAAA
     
     <!-- Confirmation Modal -->
     <div id="confirm-modal" class="modal-overlay hidden">
-        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm">
-            <h3 class="text-lg font-semibold mb-4">확인</h3>
-            <p id="confirm-message" class="text-gray-700 mb-6"></p>
-            <div class="flex justify-end space-x-4">
-                <button id="confirm-yes-btn" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">예</button>
-                <button id="confirm-no-btn" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors">아니요</button>
+        <div class="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm">
+            <h3 class="text-lg font-semibold text-slate-800 mb-3">확인</h3>
+            <p id="confirm-message" class="text-sm text-slate-600 mb-6"></p>
+            <div class="flex justify-end gap-3">
+                <button id="confirm-no-btn" class="px-4 py-2 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors">아니요</button>
+                <button id="confirm-yes-btn" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">예</button>
             </div>
         </div>
     </div>
 
     <!-- Approval Modal -->
     <div id="approval-modal" class="modal-overlay hidden">
-        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-sm relative">
-            <button id="modal-close-btn" class="absolute top-2 right-2 text-gray-500 hover:text-gray-700 text-xl font-bold">&times;</button>
-            <h3 class="text-xl font-bold mb-4"><span id="current-role-display"></span> 승인</h3>
+        <div class="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm relative">
+            <button id="modal-close-btn" class="absolute top-3 right-4 text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+            <h3 class="text-lg font-bold text-slate-800 mb-4"><span id="current-role-display"></span> 승인</h3>
             <div class="mb-4">
-                <label for="signature-name" class="block text-sm font-medium text-gray-700">이름</label>
-                <input type="text" id="signature-name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                <label for="signature-name" class="block text-sm font-medium text-slate-600 mb-1.5">이름</label>
+                <input type="text" id="signature-name" class="block w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-sm p-2.5">
             </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700">전자 서명</label>
-                <canvas id="signature-canvas" width="300" height="100" class="rounded-md border-2 border-gray-300 mt-1"></canvas>
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-slate-600 mb-1.5">전자 서명</label>
+                <canvas id="signature-canvas" width="300" height="100" class="mt-1 mx-auto block"></canvas>
             </div>
             <div class="flex justify-between items-center">
-                <button id="signature-clear-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors">지우기</button>
-                <button id="signature-save-btn" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">승인하기</button>
+                <button id="signature-clear-btn" class="px-4 py-2 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors">지우기</button>
+                <button id="signature-save-btn" class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">승인하기</button>
             </div>
         </div>
     </div>
