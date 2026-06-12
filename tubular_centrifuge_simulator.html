@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tubular 원심분리기 — Oil/Water 분리 운전 시뮬레이터</title>
+<style>
+  :root{
+    --bg:#0d1117;
+    --panel:#141b24;
+    --panel-edge:#1f2a37;
+    --ink:#e8eef4;
+    --ink-dim:#8b9bad;
+    --ink-faint:#566578;
+    --oil:#d9a441;        /* amber oil */
+    --oil-edge:#b8862c;
+    --water:#2f7fb5;      /* heavy phase */
+    --water-edge:#1d5c89;
+    --steel:#3a4757;
+    --steel-lt:#566880;
+    --accent:#5ad1c4;
+    --danger:#e2604a;
+    --warn:#e0a838;
+    --ok:#5ec27a;
+    --mono:"SFMono-Regular",ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Inter",-apple-system,"Segoe UI",system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1180px;margin:0 auto;padding:34px 22px 80px;}
+
+  /* header */
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.28em;
+    text-transform:uppercase;color:var(--accent);margin:0 0 10px;}
+  h1{font-size:clamp(24px,3.4vw,38px);line-height:1.08;margin:0 0 12px;font-weight:680;
+    letter-spacing:-.01em;}
+  h1 .thin{color:var(--ink-dim);font-weight:400;}
+  .lede{color:var(--ink-dim);font-size:15px;max-width:640px;line-height:1.6;margin:0;}
+  .rule{height:1px;background:linear-gradient(90deg,var(--panel-edge),transparent);margin:26px 0 30px;}
+
+  /* layout */
+  .grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:26px;align-items:start;}
+  @media(max-width:880px){.grid{grid-template-columns:1fr;}}
+
+  .panel{background:var(--panel);border:1px solid var(--panel-edge);border-radius:14px;padding:22px;}
+  .panel h2{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);
+    margin:0 0 18px;font-weight:600;font-family:var(--mono);}
+
+  /* bowl diagram */
+  .stage{position:relative;width:100%;}
+  svg{width:100%;height:auto;display:block;}
+  .legend{display:flex;gap:18px;margin-top:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-dim);}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .sw{width:13px;height:13px;border-radius:3px;display:inline-block;}
+
+  /* status pill */
+  .status{margin-top:18px;border-radius:10px;padding:14px 16px;border:1px solid var(--panel-edge);
+    background:#10171f;display:flex;gap:13px;align-items:flex-start;transition:border-color .25s,background .25s;}
+  .status .dot{width:10px;height:10px;border-radius:50%;margin-top:4px;flex:0 0 auto;
+    box-shadow:0 0 0 4px rgba(255,255,255,.04);}
+  .status .body{font-size:13.5px;line-height:1.5;}
+  .status .title{font-weight:650;margin-bottom:2px;}
+  .status.ok{border-color:#2a4736;background:#101c15;}
+  .status.ok .dot{background:var(--ok);}
+  .status.warn{border-color:#4a3c1c;background:#1d1810;}
+  .status.warn .dot{background:var(--warn);}
+  .status.bad{border-color:#4d2a23;background:#1d1110;}
+  .status.bad .dot{background:var(--danger);}
+
+  /* controls */
+  .ctrl{margin-bottom:24px;}
+  .ctrl:last-child{margin-bottom:0;}
+  .ctrl .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;}
+  .ctrl label{font-size:14px;font-weight:560;}
+  .ctrl .val{font-family:var(--mono);font-size:13px;color:var(--accent);
+    background:#10171f;padding:2px 9px;border-radius:6px;border:1px solid var(--panel-edge);}
+  .ctrl .hint{font-size:12px;color:var(--ink-faint);margin-top:7px;line-height:1.45;}
+
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:5px;
+    background:var(--steel);outline:none;cursor:pointer;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:19px;height:19px;
+    border-radius:50%;background:var(--ink);border:3px solid var(--accent);cursor:pointer;
+    box-shadow:0 1px 4px rgba(0,0,0,.5);transition:transform .1s;}
+  input[type=range]::-webkit-slider-thumb:active{transform:scale(1.18);}
+  input[type=range]::-moz-range-thumb{width:19px;height:19px;border-radius:50%;background:var(--ink);
+    border:3px solid var(--accent);cursor:pointer;}
+
+  /* readouts */
+  .readouts{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--panel-edge);
+    border:1px solid var(--panel-edge);border-radius:10px;overflow:hidden;margin-top:4px;}
+  .ro{background:var(--panel);padding:13px 15px;}
+  .ro .k{font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.07em;
+    font-family:var(--mono);}
+  .ro .v{font-size:19px;font-weight:640;margin-top:3px;font-family:var(--mono);}
+  .ro .u{font-size:11px;color:var(--ink-dim);font-weight:400;}
+
+  /* preset buttons */
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px;}
+  .presets button{flex:1;min-width:90px;background:#10171f;color:var(--ink-dim);border:1px solid var(--panel-edge);
+    border-radius:8px;padding:9px 10px;font-size:12.5px;cursor:pointer;font-weight:560;
+    transition:all .15s;font-family:inherit;}
+  .presets button:hover{border-color:var(--steel-lt);color:var(--ink);}
+  .presets button.live{border-color:var(--accent);color:var(--accent);background:#0e1a1c;}
+
+  /* notes accordion */
+  .notes{margin-top:34px;}
+  details{background:var(--panel);border:1px solid var(--panel-edge);border-radius:12px;
+    padding:0;margin-bottom:11px;overflow:hidden;}
+  summary{cursor:pointer;padding:16px 20px;font-weight:600;font-size:14.5px;list-style:none;
+    display:flex;justify-content:space-between;align-items:center;}
+  summary::-webkit-details-marker{display:none;}
+  summary .chev{color:var(--ink-faint);transition:transform .2s;font-family:var(--mono);}
+  details[open] summary .chev{transform:rotate(90deg);}
+  .notes-body{padding:0 20px 20px;color:var(--ink-dim);font-size:13.5px;line-height:1.65;}
+  .notes-body p{margin:0 0 11px;}
+  .notes-body strong{color:var(--ink);font-weight:600;}
+  .notes-body code{font-family:var(--mono);font-size:12.5px;background:#10171f;padding:1px 6px;
+    border-radius:5px;color:var(--accent);border:1px solid var(--panel-edge);}
+  .notes-body .eq{font-family:var(--mono);font-size:13px;background:#10171f;padding:11px 15px;
+    border-radius:8px;border:1px solid var(--panel-edge);color:var(--ink);margin:11px 0;
+    overflow-x:auto;}
+
+  footer{margin-top:40px;color:var(--ink-faint);font-size:12px;line-height:1.6;
+    border-top:1px solid var(--panel-edge);padding-top:18px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Continuous Tubular Bowl Centrifuge</p>
+  <h1>Oil / Water 분리 운전 시뮬레이터<br><span class="thin">interface 제어와 수분 변동 대응</span></h1>
+  <p class="lede">물이 무거워 bowl 바깥쪽을 채우고, oil은 안쪽 얇은 환형 띠로 모입니다.
+    수층(heavy phase) outlet 밸브로 oil–water interface를 제어하세요. 정상상태 위치는 dam·밀도로
+    정해지지만, 유입 수분비가 흔들리면 천이 중 interface가 안쪽으로 밀려(bulge) oil 띠가 얇아지고,
+    심하면 제품 oil 배출구로 물이 넘치는 break-over가 납니다.</p>
+  <div class="rule"></div>
+
+  <div class="grid">
+    <!-- LEFT: visualization -->
+    <div class="panel">
+      <h2>Bowl 단면 — 반경 방향 상 분포</h2>
+      <div class="stage">
+        <svg viewBox="0 0 460 386" id="bowlDiagram" aria-label="원심분리기 bowl 단면도">
+          <defs>
+            <linearGradient id="gOil" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#e7b855"/><stop offset="1" stop-color="#c9942f"/>
+            </linearGradient>
+            <linearGradient id="gWater" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#3a8fc7"/><stop offset="1" stop-color="#1d5c89"/>
+            </linearGradient>
+            <linearGradient id="gSteel" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#2a3543"/><stop offset=".5" stop-color="#3f4f63"/>
+              <stop offset="1" stop-color="#2a3543"/>
+            </linearGradient>
+          </defs>
+
+          <!-- ===== OUTLET COLLECTOR ZONE (top, y < 56) =====
+               Oil overflows the oil weir at r_L into the OIL collector (center).
+               Water overflows the water weir at the wall into the WATER collector (outer). -->
+          <!-- oil collector troughs (center, both sides of axis, between the two r_L weirs) -->
+          <rect id="oilCollect" x="190" y="30" width="80" height="16" rx="2" fill="#2a2415" stroke="#6e5a2a" stroke-width="1"/>
+          <text x="230" y="22" fill="#d9a441" font-size="9.5" text-anchor="middle"
+            font-family="monospace" letter-spacing="1">OIL OUTLET (light)</text>
+          <!-- water collector troughs (outer, against walls) -->
+          <rect x="40" y="30" width="22" height="16" rx="2" fill="#13242f" stroke="#27506b" stroke-width="1"/>
+          <rect x="398" y="30" width="22" height="16" rx="2" fill="#13242f" stroke="#27506b" stroke-width="1"/>
+          <text x="51" y="22" fill="#3a8fc7" font-size="9.5" text-anchor="middle" font-family="monospace">H₂O OUT</text>
+          <text x="409" y="22" fill="#3a8fc7" font-size="9.5" text-anchor="middle" font-family="monospace">H₂O OUT</text>
+
+          <!-- axis label -->
+          <text x="230" y="62" fill="#566578" font-size="9" text-anchor="middle"
+            font-family="monospace" letter-spacing="2" opacity="0">AXIS</text>
+          <line x1="230" y1="46" x2="230" y2="364" stroke="#2f3a48" stroke-width="1" stroke-dasharray="4 4"/>
+
+          <!-- bowl wall outline (we draw right half conceptually mirrored) -->
+          <rect x="60" y="40" width="340" height="280" rx="8" fill="url(#gSteel)" opacity="0"/>
+
+          <!-- liquid bands: drawn as two mirrored horizontal stacks around axis.
+               We render as full-width bands; widths set by JS. -->
+          <!-- water band (outer) -->
+          <rect id="waterL" x="60" y="60" width="60" height="240" fill="url(#gWater)"/>
+          <rect id="waterR" x="340" y="60" width="60" height="240" fill="url(#gWater)"/>
+          <!-- oil band (inner) -->
+          <rect id="oilL" x="120" y="60" width="50" height="240" fill="url(#gOil)"/>
+          <rect id="oilR" x="290" y="60" width="50" height="240" fill="url(#gOil)"/>
+          <!-- air core center -->
+          <rect id="core" x="170" y="60" width="120" height="240" fill="#0d1117"/>
+
+          <!-- interface lines -->
+          <line id="ifL" x1="170" y1="60" x2="170" y2="300" stroke="#e8eef4" stroke-width="2" stroke-dasharray="3 3" opacity=".85"/>
+          <line id="ifR" x1="290" y1="60" x2="290" y2="300" stroke="#e8eef4" stroke-width="2" stroke-dasharray="3 3" opacity=".85"/>
+
+          <!-- bowl walls -->
+          <rect x="56" y="56" width="8" height="248" fill="#46566b"/>
+          <rect x="396" y="56" width="8" height="248" fill="#46566b"/>
+
+          <!-- ===== WEIRS at top of bowl (y≈46-60) =====
+               Oil weir at r_L: oil overflowing inward past this lip leaves via oil outlet.
+               Water weir at wall: water overflowing past it leaves via water outlet. -->
+          <!-- oil weirs (yellow lips at r_L) -->
+          <g id="oilWeir">
+            <rect id="owL" x="166" y="46" width="4" height="14" fill="#d9a441"/>
+            <rect id="owR" x="290" y="46" width="4" height="14" fill="#d9a441"/>
+          </g>
+          <!-- interface markers (blue, follow r_i) -->
+          <g id="ifMark">
+            <polygon id="hdL" points="120,58 113,48 127,48" fill="#2f7fb5"/>
+            <polygon id="hdR" points="340,58 333,48 347,48" fill="#2f7fb5"/>
+          </g>
+
+          <!-- normal oil overflow: oil spilling inward over the weir into oil collector -->
+          <g id="oilFlow" opacity="0.9">
+            <path id="ofL" d="M168,47 q-6,-6 -14,-9" stroke="#e7b855" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <path id="ofR" d="M292,47 q6,-6 14,-9" stroke="#e7b855" stroke-width="3" fill="none" stroke-linecap="round"/>
+          </g>
+          <!-- normal water overflow: water spilling outward over wall into water collector -->
+          <g id="waterFlow" opacity="0.9">
+            <path d="M60,47 q-5,-6 -10,-9" stroke="#3a8fc7" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <path d="M400,47 q5,-6 10,-9" stroke="#3a8fc7" stroke-width="3" fill="none" stroke-linecap="round"/>
+          </g>
+
+          <!-- BREAK-OVER flow: water flooding inward over the oil weir into the OIL collector -->
+          <g id="breakFlow" opacity="0">
+            <path d="M168,46 q-3,-8 -10,-12 t-12,-6" stroke="#3a8fc7" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M292,46 q3,-8 10,-12 t12,-6" stroke="#3a8fc7" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <text x="230" y="56" fill="#e2604a" font-size="9" text-anchor="middle" font-weight="bold" font-family="monospace">물 혼입 →</text>
+          </g>
+          <!-- break-over warning flash border -->
+          <rect id="flash" x="56" y="60" width="348" height="240" fill="none" stroke="var(--danger)"
+            stroke-width="3" rx="6" opacity="0"/>
+        </svg>
+      </div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--oil)"></i>Oil layer (light / 제품)</span>
+        <span><i class="sw" style="background:var(--water)"></i>Water layer (heavy)</span>
+        <span><i class="sw" style="background:#46566b"></i>Bowl wall</span>
+        <span><i class="sw" style="background:#0d1117;border:1px solid #2f3a48"></i>Air core</span>
+      </div>
+      <div class="legend" style="margin-top:8px;">
+        <span><span style="color:var(--oil);font-size:14px;">▮</span>&nbsp;Oil weir (r_L) → 중앙 oil 배출구</span>
+        <span><span style="color:var(--water);font-size:14px;">▼</span>&nbsp;Interface (r_i, 밸브로 이동) — 흰 점선과 일치</span>
+        <span><span style="color:var(--water);font-size:14px;">▮</span>&nbsp;Wall → 외곽 water 배출구</span>
+      </div>
+
+      <div class="status" id="status">
+        <span class="dot"></span>
+        <div class="body">
+          <div class="title" id="statusTitle">정상 운전</div>
+          <div id="statusMsg">interface가 안정 구간 내에 있습니다.</div>
+        </div>
+      </div>
+
+      <div class="readouts">
+        <div class="ro"><div class="k">Interface 반경 r_i</div><div class="v" id="roRi">— <span class="u">mm</span></div></div>
+        <div class="ro"><div class="k">천이 변동 (bulge)</div><div class="v" id="roBulge">— <span class="u">mm</span></div></div>
+        <div class="ro"><div class="k">Oil 층 두께</div><div class="v" id="roOil">— <span class="u">mm</span></div></div>
+        <div class="ro"><div class="k">Water 층 두께</div><div class="v" id="roWaterThk">— <span class="u">mm</span></div></div>
+        <div class="ro"><div class="k">제품 오일 수분</div><div class="v" id="roWater">— <span class="u">%</span></div></div>
+        <div class="ro"><div class="k">Break-over 여유</div><div class="v" id="roMargin">— <span class="u">mm</span></div></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: controls -->
+    <div class="panel">
+      <h2>운전 조작 변수</h2>
+
+      <div class="presets" id="presets">
+        <button data-preset="oda">ODA 실측</button>
+        <button data-preset="design">설계점 1:1</button>
+        <button data-preset="spike3">변동 1:3</button>
+        <button data-preset="spike6">저Δρ·소형 1:6</button>
+        <button data-preset="startup">스타트업</button>
+      </div>
+
+      <div class="ctrl">
+        <div class="row"><label for="ratio">유입 수분비 (oil : water)</label>
+          <span class="val" id="vRatio">1 : 1.1</span></div>
+        <input type="range" id="ratio" min="0.3" max="6" step="0.1" value="1.08">
+        <div class="hint">ODA 테스트 실측 비율(oil 2400 : water 2600 ≈ 1:1.08)을 기본값으로 둡니다.
+          조업 중 흔들리는 상황을 모사하려면 슬라이더를 움직이세요.</div>
+      </div>
+
+      <div class="ctrl">
+        <div class="row"><label for="bowl">Bowl 용량</label>
+          <span class="val" id="vBowl">6.0 L</span></div>
+        <input type="range" id="bowl" min="3" max="10" step="0.5" value="6">
+        <div class="hint">실험실 disc/tubular 급(3~10 L). 용량이 클수록 같은 유량에서 체류시간이 길어져
+          분리 여유가 커집니다. 이번 테스트는 6 L bowl(내부 보유 약 5.8 L)이었습니다.</div>
+      </div>
+
+      <div class="ctrl">
+        <div class="row"><label for="ddens">밀도 차 Δρ (heavy − light)</label>
+          <span class="val" id="vDdens">0.08 kg/dm³</span></div>
+        <input type="range" id="ddens" min="0.02" max="0.20" step="0.01" value="0.08">
+        <div class="hint">ODA 실측: light ~0.90–0.95, heavy ~0.95–1.05 → Δρ ≈ 0.05–0.10으로 매우 작습니다.
+          Δρ가 작을수록 분리가 어렵고 interface가 불안정해 break-over 여유가 줄어듭니다.</div>
+      </div>
+
+      <div class="ctrl">
+        <div class="row"><label for="valve">수층 outlet 밸브 개도</label>
+          <span class="val" id="vValve">50 %</span></div>
+        <input type="range" id="valve" min="0" max="100" step="1" value="50">
+        <div class="hint">heavy phase 배압을 조절해 interface를 제어합니다. 조이면(개도↓) 수층이 두꺼워지고
+          interface가 안쪽으로, 열면 바깥으로 이동합니다.</div>
+      </div>
+
+      <div class="ctrl">
+        <div class="row"><label for="feed">공급 유량 (체류시간)</label>
+          <span class="val" id="vFeed">60 %</span></div>
+        <input type="range" id="feed" min="20" max="100" step="1" value="60">
+        <div class="hint">유량↑ = 체류시간↓. 높으면 처리량은 늘지만 분리가 불완전해져 수분 변동에 취약해집니다.</div>
+      </div>
+
+      <div class="ctrl">
+        <div class="row"><label for="rpm">회전 속도</label>
+          <span class="val" id="vRpm">15000 G</span></div>
+        <input type="range" id="rpm" min="6000" max="17000" step="500" value="15000">
+        <div class="hint">원심력. 높을수록 밀도 차 분리가 빨라져 break-over 여유가 커집니다.</div>
+      </div>
+
+      <div class="ctrl">
+        <div class="row"><label>자동 interface 제어</label>
+          <span class="val" id="vAuto">OFF</span></div>
+        <label style="display:flex;gap:10px;align-items:center;cursor:pointer;font-size:13px;color:var(--ink-dim);font-weight:400;margin-top:4px;">
+          <input type="checkbox" id="auto" style="width:18px;height:18px;accent-color:var(--accent);cursor:pointer;">
+          light phase 수분 센서 → 수층 밸브 PI 제어 (10배 변동은 수동 추종 곤란)
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOTES -->
+  <div class="notes">
+    <details open>
+      <summary>ODA 실측 물성 & 이번 테스트 결과 <span class="chev">›</span></summary>
+      <div class="notes-body">
+        <p><strong>물질:</strong> ODA White-RM (aqueous phase 제거 후). Light = C18 이산(dicarboxylic acid)
+          함유 oil phase, Heavy = oil + interphase 혼합. 분리 온도 70~80°C, pH 2~3(약산성), 비부식·비침식이나
+          유기산으로 중간 정도 부식성. 불연속 입자 없음(에멀전/점성상).</p>
+        <p><strong>밀도:</strong> light ~0.90–0.95, heavy ~0.95–1.05 kg/dm³ → <strong>Δρ ≈ 0.05–0.10으로 매우
+          작음.</strong> 밀도 차가 작을수록 분리가 어렵고 안전 구간이 좁아집니다(우측 Δρ 슬라이더로 확인).
+          <strong>점도:</strong> light 200~800 cP, heavy는 gel 같은 초고점도 → 온도 유지(65~70°C)가 필수.
+          <strong>목표:</strong> 제품 light 순도 80~90%, 잔류 interphase/water 2% 미만.</p>
+        <p><strong>이번 테스트(6 L bowl):</strong> water(heavy) ≈ 2600 ml, oil(light) ≈ 2400 ml
+          (≈ 1:1.08), bowl 내부 보유 ≈ 5800 ml. 'ODA 실측' 프리셋이 이 조건입니다. 참고로 10 L를 한 번에
+          통과시켜 순식간에 끝났는데, 체류시간 부족은 이 시뮬레이터에 의도적으로 반영하지 않았습니다.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>정상상태 vs 천이 — 그림이 보여주는 두 가지 <span class="chev">›</span></summary>
+      <div class="notes-body">
+        <p><strong>레이어 두께는 유입 비율이 아니라 dam·밀도로 정해집니다.</strong> 연속식에서는 들어온 만큼
+          나가므로(정상상태), 유입이 1:3이면 배출도 평균 1:3입니다. 하지만 bowl 안에 잡혀 있는 oil/water
+          띠의 두께는 oil weir(r_L)·벽(r_W)·interface(r_i) 위치로 결정되지, 조성으로 결정되지 않습니다.
+          oil은 가벼워 안쪽 얇은 띠(보통 액층 깊이의 <strong>10~25%</strong>), water가 바깥 대부분을 채웁니다.</p>
+        <p><strong>천이(transient) 때는 다릅니다.</strong> 유입 수분비가 흔들리면, 늘어난 물을 bowl이 미처
+          못 빼주는 동안 water 층이 부풀어(bulge) interface가 안쪽으로 밀립니다. 그래서 1:3·1:6으로 올릴수록
+          그림에서 oil 띠가 얇아지고 흰 점선(interface)이 안쪽으로 이동합니다. 회전속도↑·유량↓·Bowl 용량↑·Δρ↑로
+          settling 용량을 키우면 bulge가 줄어 원위치로 돌아갑니다. 우측 readout의 <code>천이 변동(bulge)</code>
+          값이 이 이동량입니다.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>왜 수층 outlet으로 제어하는가 <span class="chev">›</span></summary>
+      <div class="notes-body">
+        <p>Interface 반경 <code>r_i</code>는 두 배출구에서의 정수압 균형으로 결정됩니다. 단순화하면:</p>
+        <div class="eq">ρ_oil · (r_i² − r_L²) = ρ_water · (r_i² − r_H²)</div>
+        <p>수층(heavy) 쪽 밸브를 조절하면 등가 배출 반경 <code>r_H</code>가 바뀌어 interface가 반경 방향으로
+          이동합니다. 밸브를 <strong>열면</strong> 물이 잘 빠져 interface가 바깥으로 가 oil 띠가 두꺼워지고(여유↑),
+          <strong>조이면</strong> 물이 backup되어 interface가 안쪽(oil weir 쪽)으로 밀려 oil 띠가 얇아집니다.
+          light(오일) 배출은 직접 건드리지 않으므로 제품 라인이 교란되지 않습니다 — 그래서
+          <strong>수층 제어가 옳습니다.</strong></p>
+      </div>
+    </details>
+
+    <details>
+      <summary>수분 1:1~1:3 변동 — 수용 가능 <span class="chev">›</span></summary>
+      <div class="notes-body">
+        <p>정상상태 interface는 위 식에서 보듯 <strong>조성과 무관</strong>하게 dam·밀도로 결정되어 같은 위치로
+          수렴하려 합니다. 관건은 천이와 heavy outlet 용량인데, 3배 부하 변동은 일반적인 tubular bowl의 수층
+          용량·배출 능력으로 흡수 가능합니다. 밸브 trim으로 충분히 되잡히고 헌팅 위험도 낮아,
+          <strong>원래 구상한 밸브 제어 컨셉이 그대로 적합</strong>합니다. 자동 제어는 필수가 아닌 nice-to-have.</p>
+        <p>다만 ring dam은 최대 부하(1:3) 기준으로 잡고, feed 유량도 1:3에서 분리가 끝나도록 보수적으로
+          정해 1:1일 때를 마진으로 두세요.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>수분 1:10 스파이크 — 추가 설계 필요 <span class="chev">›</span></summary>
+      <div class="notes-body">
+        <p>heavy phase 부하가 최대 10배. 정상상태 위치는 같아도 천이 중 수층이 부풀어 oil 배출구를 침범하면
+          <strong>제품 오일에 물이 섞이는 break-over</strong>가 납니다. 밸브 수동 추종으로는 위상 지연 때문에
+          오버슈트·헌팅이 생기기 쉽고, tubular는 bowl 부피가 작아 응답이 빨라 더 진동합니다.</p>
+        <p>대응: <strong>① ring dam을 1:10 기준 설계</strong>(1차 방어선), <strong>② feed 유량을 최악 기준
+          보수적 설정</strong>, <strong>③ light phase 수분/밀도 센서 → 수층 밸브 자동 PI 제어</strong>,
+          <strong>④ 상류 feed 탱크로 조성 평활화(surge 완충)</strong>. 밸브는 미세조정(trim)으로 역할이 내려갑니다.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>스타트업 — water priming <span class="chev">›</span></summary>
+      <div class="notes-body">
+        <p>빈 bowl이나 오일로 채운 상태로 feed를 넣으면 hydraulic seal 형성 전에 오일이 수층 배출구로 곧장
+          빠져나갑니다. <strong>먼저 물로 bowl을 채워 seal을 확보</strong>한 뒤 feed를 도입하고, interface가
+          자리잡으면 그때 수층 밸브로 미세조정하는 순서가 안정적입니다.</p>
+      </div>
+    </details>
+  </div>
+
+  <footer>
+    교육·개념 검토용 정성 모델입니다. interface 평형은 정수압 균형의 단순화 형태이고, break-over 판정과 수분
+    혼입률은 체류시간·원심력·밸브 개도를 합친 휴리스틱입니다. 실제 dam 반경·bowl 치수·밀도·목표 처리량을 넣은
+    정량 설계는 별도 계산이 필요합니다.
+  </footer>
+</div>
+
+<script>
+(function(){
+  // geometry constants (mm, measured from rotation axis)
+  const R_WALL  = 50;     // bowl wall radius — water sits against it
+  const R_CORE  = 12;     // air-core radius (inner edge of liquid pool)
+  const R_LIGHT = 14;     // oil weir radius — oil overflows here (thin band just outside core)
+  // Realistic layout: core(0..12) | OIL band(14..r_i, thin) | WATER(r_i..50, bulk).
+  // Design interface ~20mm => oil band ~6mm, water ~30mm  (oil ≈ 17% of liquid depth).
+
+  // svg pixel mapping: axis at x=230, wall at x=56(left)/404(right) => 174px = 50mm half
+  const AX = 230, PXL = 174, MM = 50;
+  const mm2px = mm => mm/MM*PXL;
+
+  const els = {
+    ratio:document.getElementById('ratio'), valve:document.getElementById('valve'),
+    feed:document.getElementById('feed'), rpm:document.getElementById('rpm'),
+    auto:document.getElementById('auto'),
+    bowl:document.getElementById('bowl'), ddens:document.getElementById('ddens'),
+    vRatio:document.getElementById('vRatio'), vValve:document.getElementById('vValve'),
+    vFeed:document.getElementById('vFeed'), vRpm:document.getElementById('vRpm'),
+    vAuto:document.getElementById('vAuto'),
+    vBowl:document.getElementById('vBowl'), vDdens:document.getElementById('vDdens'),
+    oilL:document.getElementById('oilL'), oilR:document.getElementById('oilR'),
+    waterL:document.getElementById('waterL'), waterR:document.getElementById('waterR'),
+    core:document.getElementById('core'),
+    ifL:document.getElementById('ifL'), ifR:document.getElementById('ifR'),
+    hdL:document.getElementById('hdL'), hdR:document.getElementById('hdR'),
+    owL:document.getElementById('owL'), owR:document.getElementById('owR'),
+    ofL:document.getElementById('ofL'), ofR:document.getElementById('ofR'),
+    oilFlow:document.getElementById('oilFlow'),
+    breakFlow:document.getElementById('breakFlow'),
+    flash:document.getElementById('flash'),
+    status:document.getElementById('status'),
+    statusTitle:document.getElementById('statusTitle'),
+    statusMsg:document.getElementById('statusMsg'),
+    roRi:document.getElementById('roRi'), roOil:document.getElementById('roOil'),
+    roWater:document.getElementById('roWater'), roMargin:document.getElementById('roMargin'),
+    roBulge:document.getElementById('roBulge'), roWaterThk:document.getElementById('roWaterThk'),
+  };
+
+  function compute(){
+    const ratio = +els.ratio.value;        // water per 1 oil
+    let valve = +els.valve.value;           // 0..100 open
+    const feed = +els.feed.value;           // 20..100
+    const rpm = +els.rpm.value;             // G
+    const auto = els.auto.checked;
+    const bowlL = +els.bowl.value;          // 3..10 L
+    const ddens = +els.ddens.value;         // 0.02..0.20 kg/dm3
+
+    // ===================================================================
+    // PHYSICS MODEL — three radii, all measured from rotation axis (mm):
+    //   r_L  = oil weir radius   .................... FIXED. oil overflows here.
+    //   r_i  = interface (water/oil boundary) ...... VARIABLE. the thing we control.
+    //   r_W  = bowl wall radius .................... FIXED. water sits against it.
+    // Realistic layout:  air core | OIL band (r_L..r_i, THIN) | WATER (r_i..r_W, BULK)
+    // Water is heavier so it fills the outer bulk; oil is a thin inner annulus.
+    //
+    // STEADY STATE: interface position is set by the valve (dam back-pressure),
+    //   not by feed composition. TRANSIENT: a swing in feed water ratio bulges the
+    //   water layer inward, visibly moving the interface toward the oil weir.
+    // ===================================================================
+    const TARGET_RI = 22;                 // design interface radius (mm) -> thin oil band
+
+    // Valve -> steady interface radius across a realistic narrow band.
+    // Closing (0%) backs water up -> interface near oil weir (thin oil, risky).
+    // Opening (100%) discharges water -> interface out (thicker oil cushion).
+    function ri_from_valve(v){ return 16 + (v/100)*(30 - 16); }   // 16..30 mm
+
+    // Settling capacity (Sigma-like). Stokes settling velocity ∝ Δρ × G, and a larger
+    // bowl gives longer residence at the same feed. Reference: Δρ=0.08, 6L, 15000G, feed 60.
+    //   higher rpm, higher Δρ, bigger bowl, lower feed -> more capacity (cleaner cut).
+    const settleCap = (rpm/15000) * (ddens/0.08) * (bowlL/6) * (60/feed);
+    // Transient inward bulge (mm): feed water beyond what the bowl clears thickens the
+    // water layer and pushes the interface inward. Tuned to be clearly visible.
+    const bulge = Math.max(0, (ratio - settleCap*1.3)) * 1.1;
+
+    // --- Auto control: open/close valve to hold interface at TARGET_RI despite bulge ---
+    if(auto){
+      let v = valve;
+      for(let k=0;k<200;k++){
+        const ri_try = ri_from_valve(v) - bulge;
+        const err = TARGET_RI - ri_try;            // +ve -> interface too far IN -> open valve
+        v += err * 2.0;
+        v = Math.max(0, Math.min(100, v));
+      }
+      valve = Math.round(v);
+      els.valve.value = valve;
+    }
+
+    // Final interface radius, clamped to the physical band [r_L .. r_W]
+    let ri = ri_from_valve(valve) - bulge;
+    ri = Math.max(R_LIGHT, Math.min(R_WALL, ri));
+
+    const oilThk   = Math.max(0, ri - R_LIGHT);    // oil layer thickness (thin)
+    const waterThk = Math.max(0, R_WALL - ri);     // water layer thickness (bulk)
+    const margin   = ri - R_LIGHT;                 // break-over margin vs oil weir
+
+    // Water carryover into product oil. Clean while the interface stays clear of the
+    // oil weir; climbs steeply within a "danger band" before it. A SMALL density
+    // difference widens that danger band (separation is fuzzier, interface less sharp),
+    // so low Δρ systems (like ODA) reach break-over at a larger nominal margin.
+    const dangerBand = 8 * (0.08/ddens);           // 8mm at Δρ=0.08, wider when Δρ small
+    // Kinetic separation residual: finite residence time leaves some water in the product oil
+    // even when the interface margin is healthy. Higher settling capacity — bigger BOWL, higher
+    // rpm/Δρ, lower feed — means more complete separation, so the residual falls. This keeps the
+    // Bowl 용량 slider (and the other capacity terms) continuously meaningful instead of being
+    // gated behind the transient bulge, which stays 0 in clean steady operation and made the
+    // bowl slider appear inert. Steady-state interface position (ri) stays capacity-independent
+    // per the hydrostatic model; capacity acts on separation completeness, which is correct.
+    const sepResidual = 0.1 + 9 * Math.exp(-2.3 * settleCap);   // ~3% at cap 0.5 → ~0.3% at cap 1.7
+    let waterInOil;
+    if(margin <= 0)               waterInOil = 100;
+    else if(margin < dangerBand)  waterInOil = Math.min(100, Math.pow((dangerBand - margin)/dangerBand, 2) * 95 + sepResidual);
+    else                          waterInOil = sepResidual;
+
+    return {ratio,valve,feed,rpm,auto,bowlL,ddens, ri, oilThk, waterThk, margin, waterInOil, bulge, dangerBand};
+  }
+
+  function render(){
+    const s = compute();
+
+    // labels
+    els.vRatio.textContent = '1 : '+s.ratio.toFixed(1);
+    els.vValve.textContent = Math.round(s.valve)+' %';
+    els.vFeed.textContent = els.feed.value+' %';
+    els.vRpm.textContent = (+els.rpm.value).toLocaleString()+' G';
+    els.vAuto.textContent = s.auto?'ON':'OFF';
+    els.vBowl.textContent = s.bowlL.toFixed(1)+' L';
+    els.vDdens.textContent = s.ddens.toFixed(2)+' kg/dm³';
+
+    // geometry to px  (all radii measured from axis)
+    const riPx   = mm2px(s.ri);          // interface (water/oil boundary)
+    const rLPx   = mm2px(R_LIGHT);        // oil weir (oil inner boundary)
+    const corePx = mm2px(R_CORE);         // air core (inner edge of liquid pool)
+    const wallPx = PXL;                   // bowl wall (water outer boundary)
+
+    // air core: axis .. R_CORE
+    els.core.setAttribute('x', AX - corePx);
+    els.core.setAttribute('width', corePx*2);
+    // OIL occupies r_L .. r_i  (mirrored both sides)
+    els.oilL.setAttribute('x', AX - riPx);
+    els.oilL.setAttribute('width', Math.max(0, riPx - rLPx));
+    els.oilR.setAttribute('x', AX + rLPx);
+    els.oilR.setAttribute('width', Math.max(0, riPx - rLPx));
+    // WATER occupies r_i .. wall  (mirrored both sides)
+    els.waterL.setAttribute('x', AX - wallPx);
+    els.waterL.setAttribute('width', Math.max(0, wallPx - riPx));
+    els.waterR.setAttribute('x', AX + riPx);
+    els.waterR.setAttribute('width', Math.max(0, wallPx - riPx));
+    // interface lines sit exactly at r_i (span the bowl height 58..302)
+    els.ifL.setAttribute('x1', AX - riPx); els.ifL.setAttribute('x2', AX - riPx);
+    els.ifR.setAttribute('x1', AX + riPx); els.ifR.setAttribute('x2', AX + riPx);
+
+    // Oil weir lips fixed at r_L (where oil overflows out to the oil collector).
+    els.owL.setAttribute('x', AX - rLPx - 2);
+    els.owR.setAttribute('x', AX + rLPx - 2);
+    // Interface markers (blue ▼) at r_i — the boundary the valve moves.
+    els.hdL.setAttribute('points', `${AX-riPx},58 ${AX-riPx-7},48 ${AX-riPx+7},48`);
+    els.hdR.setAttribute('points', `${AX+riPx},58 ${AX+riPx-7},48 ${AX+riPx+7},48`);
+
+    // readouts
+    els.roRi.innerHTML = s.ri.toFixed(1)+' <span class="u">mm</span>';
+    els.roOil.innerHTML = s.oilThk.toFixed(1)+' <span class="u">mm</span>';
+    els.roWaterThk.innerHTML = s.waterThk.toFixed(1)+' <span class="u">mm</span>';
+    els.roWater.innerHTML = s.waterInOil.toFixed(s.waterInOil<10?1:0)+' <span class="u">%</span>';
+    els.roMargin.innerHTML = s.margin.toFixed(1)+' <span class="u">mm</span>';
+    els.roBulge.innerHTML = (s.bulge>0.05?'−':'')+s.bulge.toFixed(1)+' <span class="u">mm</span>';
+
+    // status logic (waterInOil already folds in Δρ via dangerBand)
+    let cls,title,msg;
+    const lowDp = s.ddens < 0.07;
+    if(s.waterInOil>=40 || s.margin<=0.5){
+      cls='bad';title='⚠ BREAK-OVER — 물이 oil 배출구로 넘어감';
+      msg='interface가 oil weir(r_L)를 침범해 수층이 oil 배출구(중앙 collector)로 넘어갑니다. 제품이 오염됩니다. 수층 밸브를 더 열거나(개도↑), 회전속도↑·Bowl 용량↑·공급 유량↓으로 체류시간을 확보하세요.'
+          + (lowDp?' 밀도 차가 작아(ODA 조건) 분리가 특히 어렵습니다.':'');
+    } else if(s.waterInOil>=8 || s.margin<s.dangerBand*0.5){
+      cls='warn';title='주의 — break-over 임박';
+      msg='interface가 oil weir에 가까워졌습니다. 비율이 더 흔들리면 물이 oil 배출구로 넘칩니다. 밸브·유량·Bowl 용량으로 여유를 확보하거나 자동 제어를 켜세요.'
+          + (lowDp?' Δρ가 작아 안전 구간이 좁습니다.':'');
+    } else {
+      cls='ok';title='정상 운전';
+      msg= s.auto ? '자동 제어가 interface를 목표 반경으로 유지 중. 오일만 oil 배출구로, 물은 water 배출구로 깨끗하게 분리됩니다.'
+                  : 'interface가 안정 구간 내. 오일은 중앙 oil 배출구로, 물은 외곽 water 배출구로 분리됩니다.';
+    }
+    els.status.className = 'status '+cls;
+    els.statusTitle.textContent = title;
+    els.statusMsg.textContent = msg;
+
+    // Outlet flow visualization:
+    //   normal -> oil overflows the oil weir into the oil collector (always shown).
+    //   break-over -> water floods inward over the oil weir into the OIL collector.
+    const broken = (cls==='bad');
+    els.breakFlow.style.opacity = broken ? '0.95' : '0';
+    els.oilFlow.style.opacity   = broken ? '0.25' : '0.9';   // oil flow weakens during break-over
+    els.flash.style.opacity     = broken ? '0.9'  : '0';
+  }
+
+  // presets  (ratio = water per 1 oil; bowl in L; ddens = Δρ kg/dm3)
+  const presets = {
+    oda:    {ratio:1.08,valve:50,feed:55,rpm:15000,auto:false,bowl:6,ddens:0.08},
+    design: {ratio:1,   valve:50,feed:55,rpm:15000,auto:false,bowl:6,ddens:0.10},
+    spike3: {ratio:3,   valve:50,feed:55,rpm:15000,auto:false,bowl:6,ddens:0.10},
+    spike6: {ratio:6,   valve:50,feed:80,rpm:13000,auto:false,bowl:4,ddens:0.06},
+    startup:{ratio:0.5, valve:60,feed:30,rpm:9000, auto:false,bowl:6,ddens:0.10},
+  };
+  document.getElementById('presets').addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b)return;
+    const p=presets[b.dataset.preset]; if(!p)return;
+    els.ratio.value=p.ratio; els.valve.value=p.valve; els.feed.value=p.feed;
+    els.rpm.value=p.rpm; els.auto.checked=p.auto;
+    els.bowl.value=p.bowl; els.ddens.value=p.ddens;
+    [...document.querySelectorAll('#presets button')].forEach(x=>x.classList.remove('live'));
+    b.classList.add('live');
+    render();
+  });
+
+  ['ratio','valve','feed','rpm','bowl','ddens'].forEach(id=>{
+    els[id].addEventListener('input',()=>{
+      [...document.querySelectorAll('#presets button')].forEach(x=>x.classList.remove('live'));
+      render();
+    });
+  });
+  els.auto.addEventListener('change',render);
+
+  render();
+})();
+</script>
+</body>
+</html>

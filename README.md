@@ -22,3 +22,6 @@ https://sonmanwoo.github.io/BioProcess_Lab/psa_comparison_v3.html
 5. 발효액 MF·희석여과(DF) 시뮬레이터 (컨셉 제안용)<br />
 https://sonmanwoo.github.io/BioProcess_Lab/DF_simulator.html
 
+6. Tubular 원심분리기 Oil/Water 분리 운전 시뮬레이터 (컨셉 제안용)<br />
+https://sonmanwoo.github.io/BioProcess_Lab/tubular_centrifuge_simulator.html
+

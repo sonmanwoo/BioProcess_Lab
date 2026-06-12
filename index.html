@@ -209,6 +209,19 @@
       how:['Feed·농축율·DF 회수율·DF 횟수를 슬라이더로 입력','총 회수율 = 1−(1−농축율)(1−α)^N 모델 계산','DF 횟수에 따른 회수율↑·농도↓ 트레이드오프 차트','단계별 상세표로 VCF·누적 물량 확인'],
       tech:['Diafiltration','질량수지','SVG Chart','독립형'],
       statLabel:'PRESETS', statValue:'2', note:''
+    },
+    {
+      num:'06', code:'SYS_06', file:'tubular_centrifuge_simulator.html',
+      accent:'#4ea8ff', accentBorder:'rgba(78,168,255,0.55)', accentGlow:'rgba(78,168,255,0.4)',
+      status:'LIVE', statusColor:'#3fdc7a', statusBg:'rgba(63,220,122,0.12)',
+      cat:'SIMULATION · 원심분리 운전',
+      title:'Tubular 원심분리기 분리',
+      tagline:'수층 밸브로 oil–water interface를 제어하고 break-over를 막는다.',
+      what:'연속식 tubular 원심분리기의 oil(light)·water(heavy) 분리를 bowl 단면도로 시각화하고, 6개 운전 변수로 interface 이동과 break-over를 실시간 모사하는 시뮬레이터입니다.',
+      why:'밀도 차가 작은(Δρ≈0.05–0.10) 계는 분리 여유가 좁아, 유입 수분비가 흔들리면 물이 제품 oil 배출구로 넘치는 break-over가 납니다. 어느 운전 구간이 안전한지 미리 확인할 수 있어야 합니다.',
+      how:['유입 수분비·Bowl 용량·밀도 차·회전속도·유량 입력','수층 outlet 밸브로 interface 반경 제어','천이 bulge로 interface가 oil weir에 근접하는지 관찰','break-over 시 물 혼입 흐름·경보 시각화','자동 PI 제어로 interface 목표 반경 유지'],
+      tech:['SVG','정수압 평형','Stokes 침강','break-over'],
+      statLabel:'CONTROL VARS', statValue:'6', note:''
     }
   ];
 
