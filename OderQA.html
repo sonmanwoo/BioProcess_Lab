@@ -13,26 +13,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, collection, query, onSnapshot, orderBy, where, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // 로컬 저장 모드 — Firebase 대신 브라우저 localStorage 사용 (별도 백엔드/설정 불필요)
+        const STORAGE_KEYS = {
+            evaluations: 'bioqa_evaluations',
+            approvals: 'bioqa_approvals'
+        };
 
-        // IMPORTANT: These global variables are provided by the canvas environment.
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const authToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        setLogLevel('debug');
-        
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        let userId = null;
-        let unsubscribeEvaluations = null;
-        let unsubscribeApprovals = null;
         let selectedSampleCode = 'all';
         let allEvaluations = [];
         let allSampleData = {};
@@ -201,70 +187,44 @@
         adminNav.addEventListener('click', () => showPage('admin'));
         showPage('evaluator'); // Show evaluator page by default
 
-        // Authenticate and set up Firestore listener
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                userId = user.uid;
-                console.log("Authenticated with user ID:", userId);
-                document.getElementById('user-id').textContent = userId;
-                setupFirestoreListeners();
-            } else {
-                console.log("No user signed in. Signing in anonymously...");
-                try {
-                    await signInAnonymously(auth);
-                } catch (error) {
-                    console.error("Anonymous sign-in failed:", error);
-                    showMessage("인증에 실패했습니다. 다시 시도해주세요.", false);
-                }
+        // localStorage에서 데이터를 읽어 메모리에 적재하고 화면을 갱신
+        function loadData() {
+            try {
+                allEvaluations = JSON.parse(localStorage.getItem(STORAGE_KEYS.evaluations) || '[]');
+            } catch (e) {
+                allEvaluations = [];
             }
-        });
+            try {
+                allApprovals = JSON.parse(localStorage.getItem(STORAGE_KEYS.approvals) || '{}');
+            } catch (e) {
+                allApprovals = {};
+            }
 
-        // Set up real-time listeners for evaluations and approvals
-        function setupFirestoreListeners() {
-            if (unsubscribeEvaluations) { unsubscribeEvaluations(); }
-            if (unsubscribeApprovals) { unsubscribeApprovals(); }
-            
-            // Listener for evaluations
-            const evaluationsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/evaluations`);
-            unsubscribeEvaluations = onSnapshot(query(evaluationsCollectionRef, orderBy('timestamp', 'desc')), (querySnapshot) => {
-                const evaluations = [];
-                const sampleData = {};
-                const uniqueSampleCodes = new Set();
-                uniqueSampleCodes.add('all');
+            // 최신순 정렬 (timestamp 내림차순)
+            allEvaluations.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
 
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    evaluations.push({ id: doc.id, ...data });
-
-                    if (!sampleData[data.sampleCode]) {
-                        sampleData[data.sampleCode] = [];
-                    }
-                    sampleData[data.sampleCode].push(data);
-                    uniqueSampleCodes.add(data.sampleCode);
-                });
-
-                allEvaluations = evaluations;
-                allSampleData = sampleData;
-                populateSampleCodeFilter(Array.from(uniqueSampleCodes));
-                updateAdminUI();
-            }, (error) => {
-                console.error("Failed to fetch evaluation data:", error);
-                showMessage("평가 데이터를 불러오는 데 실패했습니다.", false);
+            // 시료 코드별로 묶기
+            allSampleData = {};
+            const uniqueSampleCodes = new Set();
+            uniqueSampleCodes.add('all');
+            allEvaluations.forEach(data => {
+                if (!allSampleData[data.sampleCode]) {
+                    allSampleData[data.sampleCode] = [];
+                }
+                allSampleData[data.sampleCode].push(data);
+                uniqueSampleCodes.add(data.sampleCode);
             });
-            
-            // Listener for approvals
-            const approvalsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/approvals`);
-            unsubscribeApprovals = onSnapshot(approvalsCollectionRef, (querySnapshot) => {
-                const approvals = {};
-                querySnapshot.forEach(doc => {
-                    approvals[doc.id] = doc.data();
-                });
-                allApprovals = approvals;
-                updateAdminUI();
-            }, (error) => {
-                console.error("Failed to fetch approval data:", error);
-                showMessage("승인 데이터를 불러오는 데 실패했습니다.", false);
-            });
+
+            populateSampleCodeFilter(Array.from(uniqueSampleCodes));
+            updateAdminUI();
+        }
+
+        function saveEvaluations() {
+            localStorage.setItem(STORAGE_KEYS.evaluations, JSON.stringify(allEvaluations));
+        }
+
+        function saveApprovals() {
+            localStorage.setItem(STORAGE_KEYS.approvals, JSON.stringify(allApprovals));
         }
         
         // Function to update the admin page UI
@@ -425,18 +385,21 @@
             }
             
             try {
-                const docRef = doc(db, `artifacts/${appId}/users/${userId}/approvals`, selectedSampleCode);
-                
-                await setDoc(docRef, {
-                    approvals: {
-                        [currentApprovalRole]: {
-                            name: userName,
-                            date: approvalDate,
-                            signature: signatureData
-                        }
-                    }
-                }, { merge: true });
-                
+                if (!allApprovals[selectedSampleCode]) {
+                    allApprovals[selectedSampleCode] = { approvals: {} };
+                }
+                if (!allApprovals[selectedSampleCode].approvals) {
+                    allApprovals[selectedSampleCode].approvals = {};
+                }
+                allApprovals[selectedSampleCode].approvals[currentApprovalRole] = {
+                    name: userName,
+                    date: approvalDate,
+                    signature: signatureData
+                };
+
+                saveApprovals();
+                loadData();
+
                 showMessage("승인이 성공적으로 완료되었습니다.");
                 approvalModal.classList.add('hidden');
             } catch (error) {
@@ -626,8 +589,10 @@
         });
 
         // Function to save or update an evaluation
-        async function saveOrUpdateEvaluation(sampleCode, evaluator, evalPlace, odorIntensity, finalEvaluation, docId = null) {
+        function saveOrUpdateEvaluation(sampleCode, evaluator, evalPlace, odorIntensity, finalEvaluation, docId = null) {
+            const documentId = docId ? docId : `${sampleCode}_${evaluator}_${new Date().getTime()}`;
             const newEvaluation = {
+                id: documentId,
                 evalDate: document.getElementById('eval-date').value,
                 timestamp: new Date().toISOString(),
                 sampleCode: sampleCode,
@@ -641,11 +606,14 @@
             };
 
             try {
-                const evaluationsCollection = collection(db, `artifacts/${appId}/users/${userId}/evaluations`);
-                const documentId = docId ? docId : `${sampleCode}_${evaluator}_${new Date().getTime()}`;
-                const docRef = doc(evaluationsCollection, documentId);
-
-                await setDoc(docRef, newEvaluation);
+                const existingIndex = allEvaluations.findIndex(e => e.id === documentId);
+                if (existingIndex >= 0) {
+                    allEvaluations[existingIndex] = newEvaluation;
+                } else {
+                    allEvaluations.push(newEvaluation);
+                }
+                saveEvaluations();
+                loadData();
                 showMessage(docId ? "평가 기록이 성공적으로 갱신되었습니다." : "평가 기록이 성공적으로 저장되었습니다.");
             } catch (error) {
                 console.error("Error saving/updating evaluation:", error);
@@ -653,10 +621,11 @@
             }
         }
 
-        window.deleteEvaluation = async (docId) => {
-            const docRef = doc(db, `artifacts/${appId}/users/${userId}/evaluations`, docId);
+        window.deleteEvaluation = (docId) => {
             try {
-                await deleteDoc(docRef);
+                allEvaluations = allEvaluations.filter(e => e.id !== docId);
+                saveEvaluations();
+                loadData();
                 showMessage("평가 기록이 삭제되었습니다.");
             } catch (error) {
                 console.error("Error deleting document:", error);
@@ -759,6 +728,9 @@ AAEAAAASAQAABAAwQ0ZGACi0p/4AAAI0AAAAWEdERUYAChmU8AAACRAAAAApT1MvMg8m6m8AAAXgAAAA
         
         // Set default date to today and time
         document.getElementById('eval-date').value = new Date().toISOString().substring(0, 16);
+
+        // localStorage에 저장된 데이터 초기 로드
+        loadData();
     </script>
     <style>
         body {
@@ -827,7 +799,7 @@ AAEAAAASAQAABAAwQ0ZGACi0p/4AAAI0AAAAWEdERUYAChmU8AAACRAAAAApT1MvMg8m6m8AAAXgAAAA
             </button>
         </div>
         <div class="mt-auto pt-4 border-t border-slate-100">
-            <p class="text-[11px] text-slate-400 break-all">User ID: <span id="user-id">Loading...</span></p>
+            <p class="text-[11px] text-slate-400"><span id="user-id">💾 로컬 저장 모드</span></p>
         </div>
     </nav>
     
